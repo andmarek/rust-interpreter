@@ -183,6 +183,13 @@ mod tests {
             ",
         );
         let mut my_lexer = Lexer::new(input);
-        assert_eq!(my_lexer.next_token(), Some('e'));
+        assert_eq!(
+            my_lexer.next_token(),
+            Token::new(TokenType::Let, String::from("let"))
+        );
+        assert_eq!(
+            my_lexer.next_token(),
+            Token::new(TokenType::Ident, String::from("five"))
+        );
     }
 }
