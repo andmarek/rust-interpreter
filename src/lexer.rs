@@ -1,4 +1,7 @@
-use crate::token::token::{Token, *};
+use crate::token::{
+    symbols::{self, PIPE},
+    Token, TokenType,
+};
 
 struct Lexer {
     input: String,
@@ -14,12 +17,13 @@ impl Lexer {
             read_position: 0,
             ch: None,
         };
+        // why read char first?
         l.read_char();
         return l;
     }
 
     // Note that the lexer only supports ASCII characters
-    // If this were expanded beyond ascii, then characters
+    // If this were expanded beyond ASCII, then characters
     // could be multiple bytes wide, which complicates things.
     fn read_char(&mut self) {
         if self.read_position >= self.input.len() {
@@ -30,12 +34,15 @@ impl Lexer {
         self.position = self.read_position;
         self.read_position += 1;
     }
-    fn new_token(token_type: String, ch: char) -> Token {
+
+    fn new_token(token_type: TokenType, ch: char) -> Token {
+        // Takes token type and char and returns a Token obj with literal
         return Token {
             token_type,
             literal: ch.to_string(),
         };
     }
+
     fn read_identifier(&mut self) -> String {
         let mut identifier = String::new();
         while let Some(ch) = self.ch {
@@ -49,28 +56,64 @@ impl Lexer {
         identifier
     }
 
+    fn read_number(&mut self) -> String {
+        let start_position = self.position;
+        while let Some(ch) = self.ch {
+            if ch.is_digit(10) {
+                self.read_char();
+            } else {
+                break;
+            }
+        }
+        String::from(&self.input[start_position..self.position])
+    }
+
+    fn eat_whitespace(&mut self) {
+        while self.read_position < self.input.len() {
+            if self.ch == Some(' ') || self.ch == Some('\t') || self.ch == Some('\n') {
+                self.read_char()
+            } else {
+                break;
+            }
+        }
+    }
+
     fn next_token(&mut self) -> Token {
+        self.eat_whitespace();
         let tok = match self.ch {
             Some(ch) => match ch {
-                '#' => Lexer::new_token(POUND_SIGN.to_string(), ch),
-                '*' => Lexer::new_token(ASTERISK.to_string(), ch),
-                '_' => Lexer::new_token(UNDERSCORE.to_string(), ch),
-                '<' => Lexer::new_token(LEFT_ANGLE_BRACKET.to_string(), ch),
-                '>' => Lexer::new_token(RIGHT_ANGLE_BRACKET.to_string(), ch),
-                '-' => Lexer::new_token(DASH.to_string(), ch),
-                '`' => Lexer::new_token(BACKTICK.to_string(), ch),
-                '[' => Lexer::new_token(LEFT_BRACKET.to_string(), ch),
-                ']' => Lexer::new_token(RIGHT_BRACKET.to_string(), ch),
-                '(' => Lexer::new_token(LEFT_PARENS.to_string(), ch),
-                ')' => Lexer::new_token(RIGHT_PARENS.to_string(), ch),
-                '!' => Lexer::new_token(EXCLAMATION_MARK.to_string(), ch),
-                '+' => Lexer::new_token(PLUS_SIGN.to_string(), ch),
-                '.' => Lexer::new_token(DOT.to_string(), ch),
-                '|' => Lexer::new_token(PIPE.to_string(), ch),
-                '\\' => Lexer::new_token(BACKSLASH.to_string(), ch),
-                _ => Lexer::new_token("Not found".to_string(), ch),
+                '#' => Lexer::new_token(TokenType::PoundSign, ch),
+                '*' => Lexer::new_token(TokenType::Asterisk, ch),
+                '_' => Lexer::new_token(TokenType::Underscore, ch),
+                '<' => Lexer::new_token(TokenType::LeftAngleBracket, ch),
+                '>' => Lexer::new_token(TokenType::RightAngleBracket, ch),
+                '-' => Lexer::new_token(TokenType::Dash, ch),
+                '`' => Lexer::new_token(TokenType::Backtick, ch),
+                '[' => Lexer::new_token(TokenType::LeftBracket, ch),
+                ']' => Lexer::new_token(TokenType::RightBracket, ch),
+                '(' => Lexer::new_token(TokenType::LeftParens, ch),
+                ')' => Lexer::new_token(TokenType::RightParens, ch),
+                '!' => Lexer::new_token(TokenType::ExclamationMark, ch),
+                '+' => Lexer::new_token(TokenType::PlusSign, ch),
+                '.' => Lexer::new_token(TokenType::Dot, ch),
+                '|' => Lexer::new_token(TokenType::Pipe, ch),
+                '\\' => Lexer::new_token(TokenType::Backslash, ch),
+                // this is where we'd read the identifier or keyword I think
+                _ => {
+                    // if we've exhausted our current symbols and we still have an alphabetic character
+                    if ch.is_alphabetic() {
+                        let ident = self.read_identifier();
+                        // returns the keyword or the identifier
+                        Token::new(Token::lookup_ident(ident.as_str()), ident)
+                    } else if ch.is_digit(10) {
+                        let literal = self.read_number();
+                        Token::new(TokenType::Int, literal)
+                    } else {
+                        Lexer::new_token(TokenType::Illegal, ch)
+                    }
+                }
             },
-            None => Lexer::new_token(EOF.to_string(), '\0'),
+            None => Lexer::new_token(TokenType::Eof, '\0'),
         };
         self.read_char();
         self.read_position += 1;
@@ -130,10 +173,16 @@ mod tests {
     */
     #[test]
     fn test_next_token() {
-        let test_string = String::from("this is a test.");
-        let mut my_lexer = Lexer::new(test_string);
-        assert_eq!(my_lexer.ch, Some('t'));
-        my_lexer.read_char();
-        assert_eq!(my_lexer.ch, Some('h'));
+        let input = String::from(
+            "let five = 5;
+             let ten = 10;
+               let add = fn(x, y) {
+                 x + y;
+            };
+               let result = add(five, ten);
+            ",
+        );
+        let mut my_lexer = Lexer::new(input);
+        assert_eq!(my_lexer.next_token(), Some('e'));
     }
 }
