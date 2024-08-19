@@ -29,6 +29,7 @@ pub enum TokenType {
     Pipe,
     Backslash,
     PoundSign,
+    Equals,
 
     // Special
     Eof,
@@ -88,4 +89,5 @@ pub mod symbols {
 
     pub const PIPE: char = '|';
     pub const BACKSLASH: char = '\\';
+    pub const EQUALS: char = '=';
 }

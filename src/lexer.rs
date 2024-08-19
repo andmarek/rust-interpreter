@@ -19,7 +19,7 @@ impl Lexer {
         };
         // why read char first?
         l.read_char();
-        return l;
+        l
     }
 
     // Note that the lexer only supports ASCII characters
@@ -37,23 +37,22 @@ impl Lexer {
 
     fn new_token(token_type: TokenType, ch: char) -> Token {
         // Takes token type and char and returns a Token obj with literal
-        return Token {
+        Token {
             token_type,
             literal: ch.to_string(),
-        };
+        }
     }
 
     fn read_identifier(&mut self) -> String {
-        let mut identifier = String::new();
+        let start_position = self.position;
         while let Some(ch) = self.ch {
             if ch.is_alphabetic() || ch == '_' {
-                identifier.push(ch);
                 self.read_char();
             } else {
                 break;
             }
         }
-        identifier
+        self.input[start_position..self.position].to_string()
     }
 
     fn read_number(&mut self) -> String {
@@ -65,12 +64,12 @@ impl Lexer {
                 break;
             }
         }
-        String::from(&self.input[start_position..self.position])
+        self.input[start_position..self.position].to_string()
     }
 
     fn eat_whitespace(&mut self) {
-        while self.read_position < self.input.len() {
-            if self.ch == Some(' ') || self.ch == Some('\t') || self.ch == Some('\n') {
+        while let Some(ch) = self.ch {
+            if ch.is_whitespace() {
                 self.read_char()
             } else {
                 break;
@@ -97,6 +96,7 @@ impl Lexer {
                 '+' => Lexer::new_token(TokenType::PlusSign, ch),
                 '.' => Lexer::new_token(TokenType::Dot, ch),
                 '|' => Lexer::new_token(TokenType::Pipe, ch),
+                '=' => Lexer::new_token(TokenType::Equals, ch),
                 '\\' => Lexer::new_token(TokenType::Backslash, ch),
                 // this is where we'd read the identifier or keyword I think
                 _ => {
@@ -106,8 +106,7 @@ impl Lexer {
                         // returns the keyword or the identifier
                         Token::new(Token::lookup_ident(ident.as_str()), ident)
                     } else if ch.is_digit(10) {
-                        let literal = self.read_number();
-                        Token::new(TokenType::Int, literal)
+                        Token::new(TokenType::Int, self.read_number())
                     } else {
                         Lexer::new_token(TokenType::Illegal, ch)
                     }
@@ -116,7 +115,6 @@ impl Lexer {
             None => Lexer::new_token(TokenType::Eof, '\0'),
         };
         self.read_char();
-        self.read_position += 1;
         return tok;
     }
 }
@@ -190,6 +188,10 @@ mod tests {
         assert_eq!(
             my_lexer.next_token(),
             Token::new(TokenType::Ident, String::from("five"))
+        );
+        assert_eq!(
+            my_lexer.next_token(),
+            Token::new(TokenType::Equals, String::from("="))
         );
     }
 }
