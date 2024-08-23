@@ -1,9 +1,6 @@
-use crate::token::{
-    symbols::{self, PIPE},
-    Token, TokenType,
-};
+use crate::token::{Token, TokenType};
 
-struct Lexer {
+pub struct Lexer {
     input: String,
     position: usize,
     read_position: usize,
@@ -43,6 +40,14 @@ impl Lexer {
         }
     }
 
+    fn peek_char(&mut self) -> Option<char> {
+        if self.position >= self.input.len() {
+            None
+        } else {
+            Some(self.input[self.read_position..].chars().next().unwrap())
+        }
+    }
+
     fn read_identifier(&mut self) -> String {
         let start_position = self.position;
         while let Some(ch) = self.ch {
@@ -76,8 +81,20 @@ impl Lexer {
             }
         }
     }
+    fn lookup_ident(ident: &str) -> TokenType {
+        match ident {
+            "let" => TokenType::Let,
+            "fn" => TokenType::Function,
+            "if" => TokenType::If,
+            "else" => TokenType::Else,
+            "for" => TokenType::For,
+            "true" => TokenType::BooleanTrue,
+            "false" => TokenType::BooleanFalse,
+            _ => TokenType::Ident,
+        }
+    }
 
-    fn next_token(&mut self) -> Token {
+    pub fn next_token(&mut self) -> Token {
         self.eat_whitespace();
         let tok = match self.ch {
             Some(ch) => match ch {
@@ -92,19 +109,37 @@ impl Lexer {
                 ']' => Lexer::new_token(TokenType::RightBracket, ch),
                 '(' => Lexer::new_token(TokenType::LeftParens, ch),
                 ')' => Lexer::new_token(TokenType::RightParens, ch),
-                '!' => Lexer::new_token(TokenType::ExclamationMark, ch),
                 '+' => Lexer::new_token(TokenType::PlusSign, ch),
                 '.' => Lexer::new_token(TokenType::Dot, ch),
                 '|' => Lexer::new_token(TokenType::Pipe, ch),
-                '=' => Lexer::new_token(TokenType::Equals, ch),
                 '\\' => Lexer::new_token(TokenType::Backslash, ch),
-                // this is where we'd read the identifier or keyword I think
+                '/' => Lexer::new_token(TokenType::ForwarSlash, ch),
+                ';' => Lexer::new_token(TokenType::Semicolon, ch),
+                ',' => Lexer::new_token(TokenType::Comma, ch),
+                '{' => Lexer::new_token(TokenType::LeftBrace, ch),
+                '}' => Lexer::new_token(TokenType::RightBrace, ch),
+                '!' => {
+                    if let Some('=') = self.peek_char() {
+                        self.read_char();
+                        Token::new(TokenType::ExclaimationMarkEquals, "!=".to_string())
+                    } else {
+                        Lexer::new_token(TokenType::ExclamationMark, ch)
+                    }
+                }
+                '=' => {
+                    if let Some('=') = self.peek_char() {
+                        self.read_char();
+                        Token::new(TokenType::DoubleEqual, "==".to_string())
+                    } else {
+                        Lexer::new_token(TokenType::Equals, ch)
+                    }
+                }
                 _ => {
                     // if we've exhausted our current symbols and we still have an alphabetic character
                     if ch.is_alphabetic() {
                         let ident = self.read_identifier();
                         // returns the keyword or the identifier
-                        Token::new(Token::lookup_ident(ident.as_str()), ident)
+                        Token::new(Lexer::lookup_ident(ident.as_str()), ident)
                     } else if ch.is_digit(10) {
                         Token::new(TokenType::Int, self.read_number())
                     } else {
@@ -116,6 +151,17 @@ impl Lexer {
         };
         self.read_char();
         return tok;
+    }
+}
+impl Iterator for Lexer {
+    type Item = Token;
+    fn next(&mut self) -> Option<Self::Item> {
+        let token = self.next_token();
+        if token.token_type == TokenType::Eof {
+            None
+        } else {
+            Some(token)
+        }
     }
 }
 

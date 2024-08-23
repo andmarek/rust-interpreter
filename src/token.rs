@@ -12,8 +12,17 @@ pub enum TokenType {
     Function,
     If,
     Else,
-    // Symbols
+    For,
+    BooleanTrue,
+    BooleanFalse,
+    // Operators
+    DoubleEqual,
+    ExclaimationMarkEquals,
+    ForwarSlash,
+    PlusSign,
     Asterisk,
+    Minus,
+    // Symbols
     Underscore,
     LeftAngleBracket,
     RightAngleBracket,
@@ -24,12 +33,15 @@ pub enum TokenType {
     LeftParens,
     RightParens,
     ExclamationMark,
-    PlusSign,
     Dot,
     Pipe,
     Backslash,
     PoundSign,
     Equals,
+    Semicolon,
+    Comma,
+    LeftBrace,
+    RightBrace,
 
     // Special
     Eof,
@@ -58,36 +70,4 @@ impl Token {
             literal,
         }
     }
-
-    pub fn lookup_ident(ident: &str) -> TokenType {
-        KEYWORDS.get(ident).cloned().unwrap_or(TokenType::Ident)
-    }
-}
-
-pub mod symbols {
-    // Weird things
-    pub const ILLEGAL: &str = "ILLEGAL";
-    pub const EOF: char = '\0';
-
-    //
-    pub const POUND_SIGN: char = '#';
-    pub const ASTERISK: char = '*';
-    pub const UNDERSCORE: char = '_';
-    pub const LEFT_ANGLE_BRACKET: char = '<';
-    pub const RIGHT_ANGLE_BRACKET: char = '>';
-    pub const DASH: char = '-';
-    pub const BACKTICK: char = '`';
-
-    pub const LEFT_BRACKET: char = '[';
-    pub const RIGHT_BRACKET: char = ']';
-    pub const LEFT_PARENS: char = '(';
-    pub const RIGHT_PARENS: char = ')';
-
-    pub const EXCLAMATION_MARK: char = '!';
-    pub const PLUS_SIGN: char = '+';
-    pub const DOT: char = '.';
-
-    pub const PIPE: char = '|';
-    pub const BACKSLASH: char = '\\';
-    pub const EQUALS: char = '=';
 }
