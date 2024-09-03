@@ -2,6 +2,7 @@ use clap::Parser;
 use lexer::Lexer;
 use std::process;
 
+mod ast;
 mod lexer;
 mod repl;
 mod token;
