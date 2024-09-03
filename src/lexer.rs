@@ -139,18 +139,20 @@ impl Lexer {
                     if ch.is_alphabetic() {
                         let ident = self.read_identifier();
                         // returns the keyword or the identifier
-                        Token::new(Lexer::lookup_ident(ident.as_str()), ident)
+                        return Token::new(Lexer::lookup_ident(ident.as_str()), ident);
                     } else if ch.is_digit(10) {
-                        Token::new(TokenType::Int, self.read_number())
+                        return Token::new(TokenType::Int, self.read_number());
                     } else {
-                        Lexer::new_token(TokenType::Illegal, ch)
+                        let token = Lexer::new_token(TokenType::Illegal, ch);
+                        self.read_char();
+                        return token;
                     }
                 }
             },
             None => Lexer::new_token(TokenType::Eof, '\0'),
         };
         self.read_char();
-        return tok;
+        tok
     }
 }
 impl Iterator for Lexer {
