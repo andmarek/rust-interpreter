@@ -4,6 +4,7 @@ use std::process;
 
 mod ast;
 mod lexer;
+mod parser;
 mod repl;
 mod token;
 

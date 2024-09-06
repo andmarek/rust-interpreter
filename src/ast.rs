@@ -39,9 +39,31 @@ pub enum NodeType {
 impl Node for NodeType {
     fn token_literal(&self) -> String {
         match self {
-            NodeType::StatementType(stmt) => stmt.statement_node(),
-            NodeType::ExpressionType(expr) => expr.expression_node(),
-            NodeType::ProgramType(prog) => prog.program_node(),
+            NodeType::StatementType(stmt) => stmt.token_literal(),
+            NodeType::ExpressionType(expr) => expr.token_literal(),
+            NodeType::ProgramType(prog) => prog.token_literal(),
+        }
+    }
+}
+
+pub struct IntegerLiteral {
+    pub value: i32,
+}
+
+impl Node for IntegerLiteral {
+    fn token_literal(&self) -> String {
+        self.value.to_string()
+    }
+}
+
+pub enum ExpressionType {
+    Integer(IntegerLiteral),
+}
+
+impl Node for ExpressionType {
+    fn token_literal(&self) -> String {
+        match self {
+            ExpressionType::Integer(i) => i.token_literal(),
         }
     }
 }
@@ -49,19 +71,6 @@ impl Node for NodeType {
 pub struct Identifier {
     pub name: String,
 }
-
-
-
-pub enum ExpressionType {
-    Integer(i32),
-}
-
-impl Node for ExpressionType {
-    fn token_literal(&self) -> String {
-        ExpressionType::Integer(i) => i.token_literal();,
-    }
-}
-
 
 pub struct LetStatement {
     token: Token, // let token
