@@ -11,33 +11,15 @@ pub trait Statement: Node {
 pub trait Expression: Node {
     fn expression_node(&self) -> String;
 }
-/* Not sure about these yet */
 
-pub trait Program: Node {
-    fn program_node(&self);
+/* A program is the root node of every AST that our parser will generate. A program is
+a list of statements. */
+pub struct Program {
+    statements: Vec<Box<dyn Statement>>,
 }
-
-pub struct ProgramNode {
-    pub statements: Vec<Box<dyn Statement>>,
-}
-
-impl ProgramNode {
-    pub fn new() -> Self {
-        ProgramNode {
-            statements: Vec::new(),
-        }
-    }
-}
-
-impl Program for ProgramNode {
-    fn program_node(&self) {
-        println!("program node");
-    }
-}
-
-impl Node for ProgramNode {
+impl Node for Program {
     fn token_literal(&self) -> String {
-        if !self.statements.is_empty() {
+        if self.statements.len() > 0 {
             self.statements[0].token_literal()
         } else {
             String::from("")
@@ -45,50 +27,8 @@ impl Node for ProgramNode {
     }
 }
 
-pub enum NodeType {
-    StatementType(Box<dyn Statement>),
-    ExpressionType(Box<dyn Expression>),
-    ProgramType(Box<dyn Program>),
-}
-
-impl Node for NodeType {
-    fn token_literal(&self) -> String {
-        match self {
-            NodeType::StatementType(stmt) => stmt.token_literal(),
-            NodeType::ExpressionType(expr) => expr.token_literal(),
-            NodeType::ProgramType(prog) => prog.token_literal(),
-        }
-    }
-}
-
-pub struct IntegerLiteral {
-    pub value: i32,
-}
-
-impl Node for IntegerLiteral {
-    fn token_literal(&self) -> String {
-        self.value.to_string()
-    }
-}
-
-pub enum ExpressionType {
-    Integer(IntegerLiteral),
-}
-
-impl Node for ExpressionType {
-    fn token_literal(&self) -> String {
-        match self {
-            ExpressionType::Integer(i) => i.token_literal(),
-        }
-    }
-}
-
-pub struct Identifier {
-    pub name: String,
-}
-
 pub struct LetStatement {
-    token: Token, // let token
-    name: Identifier,
-    value: ExpressionType,
+    token: Token,
+    name: String, /* TODO: This should be an identifier I think */
+    value: Box<dyn Expression>,
 }
