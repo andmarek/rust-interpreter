@@ -1,5 +1,5 @@
 use crate::token::{Token, TokenType};
-
+/* These are pretty much our "base" types, described from the book. */
 pub trait Node {
     fn token_literal(&self) -> String;
 }
@@ -11,13 +11,28 @@ pub trait Statement: Node {
 pub trait Expression: Node {
     fn expression_node(&self) -> String;
 }
+/* Not sure about these yet */
 
 pub trait Program: Node {
-    fn program_node(&self) -> String;
+    fn program_node(&self);
 }
 
 pub struct ProgramNode {
     pub statements: Vec<Box<dyn Statement>>,
+}
+
+impl ProgramNode {
+    pub fn new() -> Self {
+        ProgramNode {
+            statements: Vec::new(),
+        }
+    }
+}
+
+impl Program for ProgramNode {
+    fn program_node(&self) {
+        println!("program node");
+    }
 }
 
 impl Node for ProgramNode {
