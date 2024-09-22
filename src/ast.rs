@@ -29,6 +29,36 @@ impl Node for Program {
 
 pub struct LetStatement {
     token: Token,
-    name: String, /* TODO: This should be an identifier I think */
-    value: Box<dyn Expression>,
+    name: String,               /* TODO: This should be an identifier I think */
+    value: Box<dyn Expression>, /* I have no idea what this is */
+}
+
+impl Statement for LetStatement {
+    fn statement_node(&self) -> String {
+        !unimplemented!()
+    }
+}
+
+impl Node for LetStatement {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
+    }
+}
+
+/* Identifier implementation */
+pub struct Identifier {
+    token: Token,
+    value: String,
+}
+
+impl Expression for Identifier {
+    fn expression_node(&self) -> String {
+        !unimplemented!()
+    }
+}
+
+impl Node for Identifier {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
+    }
 }
