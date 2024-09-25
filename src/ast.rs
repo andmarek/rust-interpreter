@@ -15,8 +15,17 @@ pub trait Expression: Node {
 /* A program is the root node of every AST that our parser will generate. A program is
 a list of statements. */
 pub struct Program {
-    statements: Vec<Box<dyn Statement>>,
+    pub statements: Vec<Box<dyn Statement>>,
 }
+
+impl Program {
+    pub fn new() -> Self {
+        Program {
+            statements: Vec::new(),
+        }
+    }
+}
+
 impl Node for Program {
     fn token_literal(&self) -> String {
         if self.statements.len() > 0 {
@@ -28,9 +37,9 @@ impl Node for Program {
 }
 
 pub struct LetStatement {
-    token: Token,
-    name: String,               /* TODO: This should be an identifier I think */
-    value: Box<dyn Expression>, /* I have no idea what this is */
+    pub token: Token,
+    pub name: Option<Identifier>, /* TODO: This should be an identifier I think */
+    pub value: Option<Box<dyn Expression>>, /* I have no idea what this is */
 }
 
 impl Statement for LetStatement {
@@ -51,6 +60,15 @@ pub struct Identifier {
     value: String,
 }
 
+impl Identifier {
+    pub fn new(token: Token) -> Self {
+        Identifier {
+            token,
+            value: String::from(""),
+        }
+    }
+}
+
 impl Expression for Identifier {
     fn expression_node(&self) -> String {
         !unimplemented!()
@@ -61,4 +79,8 @@ impl Node for Identifier {
     fn token_literal(&self) -> String {
         self.token.literal.clone()
     }
+}
+
+pub enum StatementType {
+    Let(LetStatement),
 }
