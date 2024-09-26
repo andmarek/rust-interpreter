@@ -1,5 +1,5 @@
 use crate::token::{Token, TokenType};
-/* These are pretty much our "base" types, described from the book. */
+
 pub trait Node {
     fn token_literal(&self) -> String;
 }
@@ -44,7 +44,8 @@ pub struct LetStatement {
 
 impl Statement for LetStatement {
     fn statement_node(&self) -> String {
-        !unimplemented!()
+        // TODO: might not be the right implementation, just a placeholder
+        self.token.literal.clone()
     }
 }
 

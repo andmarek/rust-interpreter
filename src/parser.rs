@@ -18,21 +18,35 @@ impl Parser {
     }
 
     pub fn next_token(&mut self) {
-        self.cur_token = self.peek_token.take();
         self.peek_token = self.lexer.next();
+        self.cur_token = self.peek_token.take();
     }
 
-    pub fn parse_program(&mut self) -> Program {
+    pub fn parse_program(&mut self) -> Result<Program, String> {
+        println!("parse program");
+        self.next_token();
+        //
         // while we haven't reached the end of the file
-        let program = Program::new();
+        let mut program = Program::new();
 
-        program
+        println!("cur token is {:?}", self.cur_token);
+
+        while let Some(_) = self.cur_token {
+            println!("HELP");
+            let statement = self.parse_statement()?;
+            let boxed_statement: Box<dyn Statement> = match statement {
+                StatementType::Let(let_stmt) => Box::new(let_stmt),
+            };
+            program.statements.push(boxed_statement);
+        }
+        Ok(program)
     }
 
-    pub fn parse_statement(&mut self) -> StatementType {
+    pub fn parse_statement(&mut self) -> Result<StatementType, String> {
+        println!("parse statement");
         match &self.cur_token {
             Some(token) => match token.token_type {
-                TokenType::Let => StatementType::Let(self.parse_let_statement().unwrap()),
+                TokenType::Let => self.parse_let_statement().map(StatementType::Let),
                 _ => panic!("Unexpected token {:?}", token.token_type),
             },
             None => panic!("Unexpected end of file"),
@@ -40,6 +54,7 @@ impl Parser {
     }
 
     pub fn parse_let_statement(&mut self) -> Result<LetStatement, String> {
+        println!("parse let statement");
         let token = self.cur_token.clone().ok_or("No current token")?;
 
         let mut statement = LetStatement {
@@ -48,6 +63,7 @@ impl Parser {
             value: None,
         };
 
+        /* If we don't have an identifier, then it's not a valid let statement */
         if !self.expect_peek(TokenType::Ident) {
             return Err("Expected identifier".to_string());
         }
@@ -55,9 +71,14 @@ impl Parser {
         let ident_token = self.cur_token.clone().ok_or("No current token")?;
         statement.name = Some(Identifier::new(ident_token));
 
-        // This is supposed to be assign
+        /* We need to rename Equals to Assign to make the code more clear */
         if !self.expect_peek(TokenType::Equals) {
             return Err("Expected identifier".to_string());
+        }
+
+        /* Skipping over the rest of the let statement until semi colon for now */
+        while !self.cur_token_is(TokenType::Semicolon) {
+            self.next_token();
         }
         Ok(statement)
     }
@@ -93,13 +114,18 @@ mod tests {
     #[test]
     fn test_parse_let_statement() {
         let input = String::from("let x = 5;");
-        let mut lexer = Lexer::new(input);
+        let lexer = Lexer::new(input);
         let mut p = Parser::new(lexer);
 
         let program = p.parse_program();
-
-        if program.statements.len() != 1 {
-            panic!("Expected 1 statement, got {:?}", program.statements.len());
+        if program.is_ok() {
+            let unwrapped_program = program.unwrap();
+            if unwrapped_program.statements.len() != 1 {
+                panic!(
+                    "Expected 1 statement, got {:?}",
+                    unwrapped_program.statements.len()
+                );
+            }
         }
     }
 
