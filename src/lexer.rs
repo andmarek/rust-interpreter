@@ -19,6 +19,9 @@ impl Lexer {
         l
     }
 
+    pub fn get_input(&self) -> &str {
+        &self.input
+    }
     // Note that the lexer only supports ASCII characters
     // If this were expanded beyond ASCII, then characters
     // could be multiple bytes wide, which complicates things.

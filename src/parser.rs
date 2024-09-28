@@ -10,6 +10,7 @@ pub struct Parser {
 
 impl Parser {
     pub fn new(lexer: Lexer) -> Self {
+        println!("{:?}", lexer.get_input());
         Parser {
             lexer,
             cur_token: None,
@@ -18,27 +19,37 @@ impl Parser {
     }
 
     pub fn next_token(&mut self) {
-        self.peek_token = self.lexer.next();
         self.cur_token = self.peek_token.take();
+        self.peek_token = Some(self.lexer.next_token());
+
+        println!("cur_token is {:?}", self.cur_token);
+        println!(
+            "peek_token is {:?}",
+            self.peek_token.clone().unwrap().literal
+        );
     }
 
     pub fn parse_program(&mut self) -> Result<Program, String> {
-        println!("parse program");
-        self.next_token();
-        //
-        // while we haven't reached the end of the file
         let mut program = Program::new();
 
-        println!("cur token is {:?}", self.cur_token);
+        self.next_token();
+        self.next_token();
 
-        while let Some(_) = self.cur_token {
-            println!("HELP");
+        println!("Beginning to parse the program");
+
+        while let Some(token) = &self.cur_token {
+            println!(
+                "Going to parse the program now, the first token is  {:?}",
+                token
+            );
             let statement = self.parse_statement()?;
             let boxed_statement: Box<dyn Statement> = match statement {
                 StatementType::Let(let_stmt) => Box::new(let_stmt),
             };
             program.statements.push(boxed_statement);
+            self.next_token();
         }
+        println!("We're done parsing the program.");
         Ok(program)
     }
 
@@ -54,7 +65,6 @@ impl Parser {
     }
 
     pub fn parse_let_statement(&mut self) -> Result<LetStatement, String> {
-        println!("parse let statement");
         let token = self.cur_token.clone().ok_or("No current token")?;
 
         let mut statement = LetStatement {
@@ -80,6 +90,7 @@ impl Parser {
         while !self.cur_token_is(TokenType::Semicolon) {
             self.next_token();
         }
+
         Ok(statement)
     }
 
@@ -99,10 +110,15 @@ impl Parser {
         }
     }
 
-    pub fn expect_peek(&self, token_type: TokenType) -> bool {
-        match &self.peek_token {
-            Some(token) => token.token_type == token_type,
-            None => false,
+    pub fn expect_peek(&mut self, token_type: TokenType) -> bool {
+        // if the token is what we expect, then we move the parser to the next
+        // token and return true
+        // else return false
+        if self.peek_token_is(token_type) {
+            self.next_token();
+            true
+        } else {
+            false
         }
     }
 }
@@ -114,10 +130,13 @@ mod tests {
     #[test]
     fn test_parse_let_statement() {
         let input = String::from("let x = 5;");
-        let lexer = Lexer::new(input);
-        let mut p = Parser::new(lexer);
 
-        let program = p.parse_program();
+        let lexer = Lexer::new(input);
+
+        let mut parser = Parser::new(lexer);
+
+        let program = parser.parse_program();
+
         if program.is_ok() {
             let unwrapped_program = program.unwrap();
             if unwrapped_program.statements.len() != 1 {
