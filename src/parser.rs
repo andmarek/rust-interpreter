@@ -38,10 +38,15 @@ impl Parser {
         println!("Beginning to parse the program");
 
         while let Some(token) = &self.cur_token {
+            if matches!(token.token_type, TokenType::Eof) {
+                break;
+            }
+
             println!(
                 "Going to parse the program now, the first token is  {:?}",
                 token
             );
+
             let statement = self.parse_statement()?;
             let boxed_statement: Box<dyn Statement> = match statement {
                 StatementType::Let(let_stmt) => Box::new(let_stmt),
@@ -128,7 +133,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_let_statement() {
+    fn test_parse_single_let_statement() {
         let input = String::from("let x = 5;");
 
         let lexer = Lexer::new(input);
@@ -142,6 +147,23 @@ mod tests {
             if unwrapped_program.statements.len() != 1 {
                 panic!(
                     "Expected 1 statement, got {:?}",
+                    unwrapped_program.statements.len()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_parse_multiple_let_statements() {
+        let input = String::from("let x = 5; let y = 10;");
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program();
+        if program.is_ok() {
+            let unwrapped_program = program.unwrap();
+            if unwrapped_program.statements.len() != 2 {
+                panic!(
+                    "Expected 2 statements, got {:?}",
                     unwrapped_program.statements.len()
                 );
             }
