@@ -15,6 +15,7 @@ pub trait Expression: Node + std::fmt::Debug {
 
 /* A program is the root node of every AST that our parser will generate. A program is
 a list of statements. */
+#[derive(Debug)]
 pub struct Program {
     pub statements: Vec<Box<dyn Statement>>,
 }

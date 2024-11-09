@@ -11,11 +11,14 @@ pub struct Parser {
 impl Parser {
     pub fn new(lexer: Lexer) -> Self {
         println!("{:?}", lexer.get_input());
-        Parser {
+        let mut parser = Parser {
             lexer,
             cur_token: None,
             peek_token: None,
-        }
+        };
+        parser.next_token();
+        parser.next_token();
+        parser
     }
 
     pub fn next_token(&mut self) {
@@ -32,10 +35,6 @@ impl Parser {
     pub fn parse_program(&mut self) -> Result<Program, String> {
         let mut program = Program::new();
 
-        /* TODO: There's no way we need this 2x */
-        self.next_token();
-        self.next_token();
-
         println!("Beginning to parse the program");
 
         while let Some(token) = &self.cur_token {
@@ -46,8 +45,10 @@ impl Parser {
             let boxed_statement: Box<dyn Statement> = match statement {
                 Some(Ok(StatementType::Let(let_stmt))) => Box::new(let_stmt),
                 Some(Err(err)) => return Err(err),
-                None => return Err("No statement found".to_string()),
+                None => break,
             };
+
+            println!("Statement is {:?}", boxed_statement);
 
             program.statements.push(boxed_statement);
 
@@ -61,10 +62,11 @@ impl Parser {
     pub fn parse_statement(&mut self) -> Option<Result<StatementType, String>> {
         println!("parse statement");
         match &self.cur_token {
-            Some(token) => Some(match token.token_type {
-                TokenType::Let => self.parse_let_statement().map(StatementType::Let),
-                _ => Err(format!("Unexpected token {:?}", token.token_type)),
-            }),
+            Some(token) => match token.token_type {
+                TokenType::Eof => None,
+                TokenType::Let => Some(self.parse_let_statement().map(StatementType::Let)),
+                _ => Some(Err(format!("Unexpected token {:?}", token.token_type))),
+            },
             None => None,
         }
     }
@@ -135,6 +137,7 @@ mod tests {
     #[test]
     fn test_parse_let_statement() {
         let input = String::from("let x = 5;");
+        println!("Testing with input: {}", input); // This will print
 
         let lexer = Lexer::new(input);
 
@@ -142,13 +145,23 @@ mod tests {
 
         let program = parser.parse_program();
 
-        if program.is_ok() {
-            let unwrapped_program = program.unwrap();
-            if unwrapped_program.statements.len() != 1 {
-                panic!(
-                    "Expected 1 statement, got {:?}",
-                    unwrapped_program.statements.len()
-                );
+        println!("Program result is {:?}", program);
+
+        match program {
+            Ok(program) => {
+                let statements_len = program.statements.len();
+                println!("Number of statements: {}", statements_len);
+
+                for statement in program.statements {
+                    println!("Statement: {:?}", statement);
+                }
+
+                if statements_len != 1 {
+                    panic!("Expected 1 statement, got {}", statements_len);
+                }
+            }
+            Err(err) => {
+                panic!("Failed to parse program: {}", err);
             }
         }
     }
