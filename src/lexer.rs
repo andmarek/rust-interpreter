@@ -99,63 +99,62 @@ impl Lexer {
 
     pub fn next_token(&mut self) -> Token {
         self.eat_whitespace();
-        let tok = match self.ch {
-            Some(ch) => match ch {
-                '#' => Lexer::new_token(TokenType::PoundSign, ch),
-                '*' => Lexer::new_token(TokenType::Asterisk, ch),
-                '_' => Lexer::new_token(TokenType::Underscore, ch),
-                '<' => Lexer::new_token(TokenType::LeftAngleBracket, ch),
-                '>' => Lexer::new_token(TokenType::RightAngleBracket, ch),
-                '-' => Lexer::new_token(TokenType::Dash, ch),
-                '`' => Lexer::new_token(TokenType::Backtick, ch),
-                '[' => Lexer::new_token(TokenType::LeftBracket, ch),
-                ']' => Lexer::new_token(TokenType::RightBracket, ch),
-                '(' => Lexer::new_token(TokenType::LeftParens, ch),
-                ')' => Lexer::new_token(TokenType::RightParens, ch),
-                '+' => Lexer::new_token(TokenType::PlusSign, ch),
-                '.' => Lexer::new_token(TokenType::Dot, ch),
-                '|' => Lexer::new_token(TokenType::Pipe, ch),
-                '\\' => Lexer::new_token(TokenType::Backslash, ch),
-                '/' => Lexer::new_token(TokenType::ForwarSlash, ch),
-                ';' => Lexer::new_token(TokenType::Semicolon, ch),
-                ',' => Lexer::new_token(TokenType::Comma, ch),
-                '{' => Lexer::new_token(TokenType::LeftBrace, ch),
-                '}' => Lexer::new_token(TokenType::RightBrace, ch),
-                '!' => {
-                    if let Some('=') = self.peek_char() {
-                        self.read_char();
-                        Token::new(TokenType::ExclaimationMarkEquals, "!=".to_string())
-                    } else {
-                        Lexer::new_token(TokenType::ExclamationMark, ch)
+
+        match self.ch {
+            Some(ch) => {
+                let tok = match ch {
+                    '#' => Lexer::new_token(TokenType::PoundSign, ch),
+                    '*' => Lexer::new_token(TokenType::Asterisk, ch),
+                    '_' => Lexer::new_token(TokenType::Underscore, ch),
+                    '<' => Lexer::new_token(TokenType::LeftAngleBracket, ch),
+                    '>' => Lexer::new_token(TokenType::RightAngleBracket, ch),
+                    '-' => Lexer::new_token(TokenType::Dash, ch),
+                    '`' => Lexer::new_token(TokenType::Backtick, ch),
+                    '[' => Lexer::new_token(TokenType::LeftBracket, ch),
+                    ']' => Lexer::new_token(TokenType::RightBracket, ch),
+                    '(' => Lexer::new_token(TokenType::LeftParens, ch),
+                    ')' => Lexer::new_token(TokenType::RightParens, ch),
+                    '+' => Lexer::new_token(TokenType::PlusSign, ch),
+                    '.' => Lexer::new_token(TokenType::Dot, ch),
+                    '|' => Lexer::new_token(TokenType::Pipe, ch),
+                    '\\' => Lexer::new_token(TokenType::Backslash, ch),
+                    '/' => Lexer::new_token(TokenType::ForwarSlash, ch),
+                    ';' => Lexer::new_token(TokenType::Semicolon, ch),
+                    ',' => Lexer::new_token(TokenType::Comma, ch),
+                    '{' => Lexer::new_token(TokenType::LeftBrace, ch),
+                    '}' => Lexer::new_token(TokenType::RightBrace, ch),
+                    '!' => {
+                        if let Some('=') = self.peek_char() {
+                            self.read_char();
+                            Token::new(TokenType::ExclaimationMarkEquals, "!=".to_string())
+                        } else {
+                            Lexer::new_token(TokenType::ExclamationMark, ch)
+                        }
                     }
-                }
-                '=' => {
-                    if let Some('=') = self.peek_char() {
-                        self.read_char();
-                        Token::new(TokenType::DoubleEqual, "==".to_string())
-                    } else {
-                        Lexer::new_token(TokenType::Equals, ch)
+                    '=' => {
+                        if let Some('=') = self.peek_char() {
+                            self.read_char();
+                            Token::new(TokenType::DoubleEqual, "==".to_string())
+                        } else {
+                            Lexer::new_token(TokenType::Equals, ch)
+                        }
                     }
-                }
-                _ => {
-                    // if we've exhausted our current symbols and we still have an alphabetic character
-                    if ch.is_alphabetic() {
-                        let ident = self.read_identifier();
-                        // returns the keyword or the identifier
-                        return Token::new(Lexer::lookup_ident(ident.as_str()), ident);
-                    } else if ch.is_digit(10) {
-                        return Token::new(TokenType::Int, self.read_number());
-                    } else {
-                        let token = Lexer::new_token(TokenType::Illegal, ch);
-                        self.read_char();
-                        return token;
+                    _ => {
+                        if ch.is_alphabetic() {
+                            let ident = self.read_identifier();
+                            return Token::new(Lexer::lookup_ident(ident.as_str()), ident);
+                        } else if ch.is_digit(10) {
+                            return Token::new(TokenType::Int, self.read_number());
+                        } else {
+                            Lexer::new_token(TokenType::Illegal, ch)
+                        }
                     }
-                }
-            },
-            None => Lexer::new_token(TokenType::Eof, '\0'),
-        };
-        self.read_char();
-        tok
+                };
+                self.read_char();
+                tok
+            }
+            None => Token::new(TokenType::Eof, String::new()),
+        }
     }
 }
 impl Iterator for Lexer {

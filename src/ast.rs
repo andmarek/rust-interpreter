@@ -6,11 +6,11 @@ pub trait Node {
 }
 
 pub trait Statement: Node {
-    fn statement_node(&self) -> String;
+    fn statement_node(&self);
 }
 
 pub trait Expression: Node + std::fmt::Debug {
-    fn expression_node(&self) -> String;
+    fn expression_node(&self);
 }
 
 /* A program is the root node of every AST that our parser will generate. A program is
@@ -27,6 +27,12 @@ impl Program {
     }
 }
 
+impl fmt::Debug for dyn Statement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.token_literal())
+    }
+}
+
 impl Node for Program {
     fn token_literal(&self) -> String {
         if self.statements.len() > 0 {
@@ -40,15 +46,12 @@ impl Node for Program {
 #[derive(Debug)]
 pub struct LetStatement {
     pub token: Token,
-    pub name: Option<Identifier>, /* TODO: This should be an identifier I think */
-    pub value: Option<Box<dyn Expression>>, /* I have no idea what this is */
+    pub name: Option<Identifier>,
+    pub value: Option<Box<dyn Expression>>,
 }
 
 impl Statement for LetStatement {
-    fn statement_node(&self) -> String {
-        // TODO: might not be the right implementation, just a placeholder
-        self.token.literal.clone()
-    }
+    fn statement_node(&self) {}
 }
 
 impl Node for LetStatement {
@@ -74,9 +77,7 @@ impl Identifier {
 }
 
 impl Expression for Identifier {
-    fn expression_node(&self) -> String {
-        !unimplemented!()
-    }
+    fn expression_node(&self) {}
 }
 
 impl Node for Identifier {

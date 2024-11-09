@@ -32,35 +32,40 @@ impl Parser {
     pub fn parse_program(&mut self) -> Result<Program, String> {
         let mut program = Program::new();
 
+        /* TODO: There's no way we need this 2x */
         self.next_token();
         self.next_token();
 
         println!("Beginning to parse the program");
 
         while let Some(token) = &self.cur_token {
-            println!(
-                "Going to parse the program now, the first token is  {:?}",
-                token
-            );
-            let statement = self.parse_statement()?;
+            println!("Parsing the program, the current token is {:?}", token);
+
+            let statement = self.parse_statement();
+
             let boxed_statement: Box<dyn Statement> = match statement {
-                StatementType::Let(let_stmt) => Box::new(let_stmt),
+                Some(Ok(StatementType::Let(let_stmt))) => Box::new(let_stmt),
+                Some(Err(err)) => return Err(err),
+                None => return Err("No statement found".to_string()),
             };
+
             program.statements.push(boxed_statement);
+
             self.next_token();
         }
+        print!("{:?}", program.statements);
         println!("We're done parsing the program.");
         Ok(program)
     }
 
-    pub fn parse_statement(&mut self) -> Result<StatementType, String> {
+    pub fn parse_statement(&mut self) -> Option<Result<StatementType, String>> {
         println!("parse statement");
         match &self.cur_token {
-            Some(token) => match token.token_type {
+            Some(token) => Some(match token.token_type {
                 TokenType::Let => self.parse_let_statement().map(StatementType::Let),
-                _ => panic!("Unexpected token {:?}", token.token_type),
-            },
-            None => panic!("Unexpected end of file"),
+                _ => Err(format!("Unexpected token {:?}", token.token_type)),
+            }),
+            None => None,
         }
     }
 
