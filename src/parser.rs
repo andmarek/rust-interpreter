@@ -1,4 +1,4 @@
-use crate::ast::{Identifier, LetStatement, Program, Statement, StatementType};
+use crate::ast::{Identifier, LetStatement, Program, ReturnStatement, Statement, StatementType};
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
 
@@ -65,10 +65,22 @@ impl Parser {
             Some(token) => match token.token_type {
                 TokenType::Eof => None,
                 TokenType::Let => Some(self.parse_let_statement().map(StatementType::Let)),
+                TokenType::Return => Some(self.parse_return_statement().map(StatementType::Return)),
                 _ => Some(Err(format!("Unexpected token {:?}", token.token_type))),
             },
             None => None,
         }
+    }
+
+    pub fn parse_return_statement(&mut self) -> Result<ReturnStatement, String> {
+        let cur_token = self.cur_token.clone().ok_or("No current token")?;
+        let mut statement = ReturnStatement {
+            token: cur_token,
+            value: None,
+        };
+        self.next_token();
+        statement.value = self.parse_statement();
+        return Ok(statement);
     }
 
     pub fn parse_let_statement(&mut self) -> Result<LetStatement, String> {

@@ -51,6 +51,12 @@ pub struct LetStatement {
     pub value: Option<Box<dyn Expression>>,
 }
 
+#[derive(Debug)]
+pub struct ReturnStatement {
+    pub token: Token,
+    pub value: Option<Box<dyn Expression>>,
+}
+
 impl Statement for LetStatement {
     fn statement_node(&self) {}
 }
@@ -89,4 +95,5 @@ impl Node for Identifier {
 
 pub enum StatementType {
     Let(LetStatement),
+    Return(ReturnStatement),
 }
