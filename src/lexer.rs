@@ -6,6 +6,7 @@ pub struct Lexer {
     read_position: usize,
     ch: Option<char>,
 }
+
 impl Lexer {
     pub fn new(input: String) -> Lexer {
         let mut l = Lexer {

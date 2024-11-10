@@ -135,7 +135,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_parse_let_statement() {
+    fn test_parse_single_let_statement() {
         let input = String::from("let x = 5;");
         println!("Testing with input: {}", input); // This will print
 
@@ -162,6 +162,23 @@ mod tests {
             }
             Err(err) => {
                 panic!("Failed to parse program: {}", err);
+            }
+        }
+    }
+
+    #[test]
+    fn test_parse_multiple_let_statements() {
+        let input = String::from("let x = 5; let y = 10;");
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program();
+        if program.is_ok() {
+            let unwrapped_program = program.unwrap();
+            if unwrapped_program.statements.len() != 2 {
+                panic!(
+                    "Expected 2 statements, got {:?}",
+                    unwrapped_program.statements.len()
+                );
             }
         }
     }
