@@ -57,6 +57,16 @@ pub struct ReturnStatement {
     pub value: Option<Box<dyn Expression>>,
 }
 
+impl Statement for ReturnStatement {
+    fn statement_node(&self) {}
+}
+
+impl Node for ReturnStatement {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
+    }
+}
+
 impl Statement for LetStatement {
     fn statement_node(&self) {}
 }
@@ -87,6 +97,21 @@ impl Expression for Identifier {
     fn expression_node(&self) {}
 }
 
+pub struct ExpressionStatement {
+    pub token: Token,
+    pub expression: Option<Box<dyn Expression>>,
+}
+
+impl Statement for ExpressionStatement {
+    fn statement_node(&self) {}
+}
+
+impl Node for ExpressionStatement {
+    fn token_literal(&self) -> String {
+        self.token.literal.clone()
+    }
+}
+
 impl Node for Identifier {
     fn token_literal(&self) -> String {
         self.token.literal.clone()
@@ -96,4 +121,5 @@ impl Node for Identifier {
 pub enum StatementType {
     Let(LetStatement),
     Return(ReturnStatement),
+    Expression(ExpressionStatement),
 }

@@ -1,4 +1,7 @@
-use crate::ast::{Identifier, LetStatement, Program, ReturnStatement, Statement, StatementType};
+use crate::ast::{
+    ExpressionStatement, Identifier, LetStatement, Program, ReturnStatement, Statement,
+    StatementType,
+};
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
 
@@ -44,6 +47,8 @@ impl Parser {
 
             let boxed_statement: Box<dyn Statement> = match statement {
                 Some(Ok(StatementType::Let(let_stmt))) => Box::new(let_stmt),
+                Some(Ok(StatementType::Return(return_stmt))) => Box::new(return_stmt),
+                Some(Ok(StatementType::Expression(expression_stmt))) => Box::new(expression_stmt),
                 Some(Err(err)) => return Err(err),
                 None => break,
             };
@@ -66,10 +71,23 @@ impl Parser {
                 TokenType::Eof => None,
                 TokenType::Let => Some(self.parse_let_statement().map(StatementType::Let)),
                 TokenType::Return => Some(self.parse_return_statement().map(StatementType::Return)),
-                _ => Some(Err(format!("Unexpected token {:?}", token.token_type))),
+                _ => Some(
+                    self.parse_expression_statement()
+                        .map(StatementType::Expression),
+                ),
             },
             None => None,
         }
+    }
+
+    pub fn parse_expression_statement(&mut self) -> Result<ExpressionStatement, String> {
+        let cur_token = self.cur_token.clone().ok_or("No current token")?;
+        let statement = ExpressionStatement {
+            token: cur_token,
+            expression: None,
+        };
+
+        return Ok(statement);
     }
 
     pub fn parse_return_statement(&mut self) -> Result<ReturnStatement, String> {
@@ -80,6 +98,7 @@ impl Parser {
         };
         self.next_token();
         statement.value = self.parse_statement();
+
         return Ok(statement);
     }
 
