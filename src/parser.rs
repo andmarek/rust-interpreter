@@ -1,3 +1,5 @@
+use std::vec;
+
 use crate::ast::{
     ExpressionStatement, Identifier, LetStatement, Program, ReturnStatement, Statement,
     StatementType,
@@ -9,6 +11,7 @@ pub struct Parser {
     lexer: Lexer,
     cur_token: Option<Token>,
     peek_token: Option<Token>,
+    errors: Vec<String>,
 }
 
 impl Parser {
@@ -18,6 +21,7 @@ impl Parser {
             lexer,
             cur_token: None,
             peek_token: None,
+            errors: vec![],
         };
         parser.next_token();
         parser.next_token();
@@ -33,6 +37,10 @@ impl Parser {
             "peek_token is {:?}",
             self.peek_token.clone().unwrap().literal
         );
+    }
+
+    pub fn get_errors(self) -> Vec<String> {
+        return self.errors.clone();
     }
 
     pub fn parse_program(&mut self) -> Result<Program, String> {
@@ -90,14 +98,23 @@ impl Parser {
         return Ok(statement);
     }
 
+    // Should this return a value?
+    pub fn parse_expression(&mut self) -> Result<Token, String> {
+        unimplemented!()
+    }
+
     pub fn parse_return_statement(&mut self) -> Result<ReturnStatement, String> {
         let cur_token = self.cur_token.clone().ok_or("No current token")?;
-        let mut statement = ReturnStatement {
+        let statement = ReturnStatement {
             token: cur_token,
             value: None,
         };
         self.next_token();
-        statement.value = self.parse_statement();
+        // parse the expression, we're only supporting that for now
+        // self.parse_expression()
+        while !self.cur_token_is(TokenType::Semicolon) {
+            self.next_token();
+        }
 
         return Ok(statement);
     }
@@ -159,6 +176,15 @@ impl Parser {
             false
         }
     }
+
+    pub fn peek_error(&mut self, token: Token) {
+        let msg = format!(
+            "Expected next token to be {}, got {}",
+            token.literal,
+            self.peek_token.as_ref().unwrap().literal
+        );
+        self.errors.push(msg);
+    }
 }
 
 #[cfg(test)]
@@ -189,6 +215,28 @@ mod tests {
 
                 if statements_len != 1 {
                     panic!("Expected 1 statement, got {}", statements_len);
+                }
+            }
+            Err(err) => {
+                panic!("Failed to parse program: {}", err);
+            }
+        }
+    }
+
+    #[test]
+    fn test_parse_return_statement() {
+        let input = String::from("return 5;");
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program();
+        match program {
+            Ok(program) => {
+                let unwrapped_program = program;
+                if unwrapped_program.statements.len() != 1 {
+                    panic!(
+                        "Expected 1 statement, got {}",
+                        unwrapped_program.statements.len()
+                    );
                 }
             }
             Err(err) => {
