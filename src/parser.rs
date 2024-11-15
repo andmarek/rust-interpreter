@@ -1,7 +1,7 @@
 use std::vec;
 
 use crate::ast::{
-    ExpressionStatement, Identifier, LetStatement, Program, ReturnStatement, Statement,
+    ExpressionStatement, Identifier, LetStatement, Node, Program, ReturnStatement, Statement,
     StatementType,
 };
 use crate::lexer::Lexer;
@@ -67,22 +67,34 @@ impl Parser {
 
             self.next_token();
         }
-        print!("{:?}", program.statements);
+        print!("Program statements: {:?}", program.statements);
         println!("We're done parsing the program.");
         Ok(program)
     }
 
     pub fn parse_statement(&mut self) -> Option<Result<StatementType, String>> {
-        println!("parse statement");
+        println!("Parsing statement");
         match &self.cur_token {
             Some(token) => match token.token_type {
-                TokenType::Eof => None,
-                TokenType::Let => Some(self.parse_let_statement().map(StatementType::Let)),
-                TokenType::Return => Some(self.parse_return_statement().map(StatementType::Return)),
-                _ => Some(
-                    self.parse_expression_statement()
-                        .map(StatementType::Expression),
-                ),
+                TokenType::Eof => {
+                    println!("Encountered EOF");
+                    None
+                }
+                TokenType::Let => {
+                    println!("Let statement");
+                    Some(self.parse_let_statement().map(StatementType::Let))
+                }
+                TokenType::Return => {
+                    println!("Return statement");
+                    Some(self.parse_return_statement().map(StatementType::Return))
+                }
+                _ => {
+                    print!("Parsing expression statement");
+                    Some(
+                        self.parse_expression_statement()
+                            .map(StatementType::Expression),
+                    )
+                }
             },
             None => None,
         }
@@ -109,14 +121,14 @@ impl Parser {
             token: cur_token,
             value: None,
         };
-        self.next_token();
-        // parse the expression, we're only supporting that for now
-        // self.parse_expression()
+
+        // TODO: expression parsing is not implemented yet,
+        // so we're skipping over the expression for now.
         while !self.cur_token_is(TokenType::Semicolon) {
+            println!("Skipping token {:?}", self.cur_token);
             self.next_token();
         }
-
-        return Ok(statement);
+        Ok(statement)
     }
 
     pub fn parse_let_statement(&mut self) -> Result<LetStatement, String> {
@@ -133,15 +145,15 @@ impl Parser {
             return Err("Expected identifier".to_string());
         }
 
-        let ident_token = self.cur_token.clone().ok_or("No current token")?;
-        statement.name = Some(Identifier::new(ident_token));
+        let identifier = self.cur_token.clone().ok_or("No current token")?;
+        statement.name = Some(Identifier::new(identifier));
 
-        /* We need to rename Equals to Assign to make the code more clear */
+        /* TODO: Change EQUALS to ASSIGN */
         if !self.expect_peek(TokenType::Equals) {
-            return Err("Expected identifier".to_string());
+            return Err("Expected equals sign after identifier in let statement".to_string());
         }
 
-        /* Skipping over the rest of the let statement until semi colon for now */
+        /* TODO: implement the expression parsing. */
         while !self.cur_token_is(TokenType::Semicolon) {
             self.next_token();
         }
@@ -202,13 +214,11 @@ mod tests {
 
         let program = parser.parse_program();
 
-        println!("Program result is {:?}", program);
-
         match program {
             Ok(program) => {
+                println!("Program result is {:?}", program.string());
                 let statements_len = program.statements.len();
                 println!("Number of statements: {}", statements_len);
-
                 for statement in program.statements {
                     println!("Statement: {:?}", statement);
                 }
@@ -216,6 +226,7 @@ mod tests {
                 if statements_len != 1 {
                     panic!("Expected 1 statement, got {}", statements_len);
                 }
+                //panic!();
             }
             Err(err) => {
                 panic!("Failed to parse program: {}", err);
@@ -229,8 +240,10 @@ mod tests {
         let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);
         let program = parser.parse_program();
+
         match program {
             Ok(program) => {
+                println!("Program is {:?}", program.string());
                 let unwrapped_program = program;
                 if unwrapped_program.statements.len() != 1 {
                     panic!(

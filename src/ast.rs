@@ -3,6 +3,7 @@ use std::fmt;
 
 pub trait Node {
     fn token_literal(&self) -> String;
+    fn string(&self) -> String;
 }
 
 pub trait Statement: Node {
@@ -42,6 +43,14 @@ impl Node for Program {
             String::from("")
         }
     }
+
+    fn string(&self) -> String {
+        let mut out = String::new();
+        for stmt in &self.statements {
+            out.push_str(&stmt.string());
+        }
+        out
+    }
 }
 
 #[derive(Debug)]
@@ -65,6 +74,16 @@ impl Node for ReturnStatement {
     fn token_literal(&self) -> String {
         self.token.literal.clone()
     }
+    fn string(&self) -> String {
+        let mut out = String::new();
+        out.push_str(&self.token_literal());
+        out.push_str(" ");
+        if let Some(value) = &self.value {
+            out.push_str(&value.string());
+        }
+        out.push_str(";");
+        out
+    }
 }
 
 impl Statement for LetStatement {
@@ -74,6 +93,22 @@ impl Statement for LetStatement {
 impl Node for LetStatement {
     fn token_literal(&self) -> String {
         self.token.literal.clone()
+    }
+    fn string(&self) -> String {
+        let mut out = String::new();
+        out.push_str(&self.token_literal());
+        out.push_str(" ");
+
+        if let Some(name) = &self.name {
+            out.push_str(&name.string());
+        }
+
+        out.push_str(" = ");
+
+        if let Some(value) = &self.value {
+            out.push_str(&value.string());
+        }
+        return out;
     }
 }
 
@@ -110,11 +145,21 @@ impl Node for ExpressionStatement {
     fn token_literal(&self) -> String {
         self.token.literal.clone()
     }
+    fn string(&self) -> String {
+        if let Some(expr) = &self.expression {
+            return expr.string();
+        } else {
+            return String::from("");
+        }
+    }
 }
 
 impl Node for Identifier {
     fn token_literal(&self) -> String {
         self.token.literal.clone()
+    }
+    fn string(&self) -> String {
+        return format!("{}", self.token_literal());
     }
 }
 

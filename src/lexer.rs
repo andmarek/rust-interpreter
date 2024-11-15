@@ -88,6 +88,7 @@ impl Lexer {
     fn lookup_ident(ident: &str) -> TokenType {
         match ident {
             "let" => TokenType::Let,
+            "return" => TokenType::Return,
             "fn" => TokenType::Function,
             "if" => TokenType::If,
             "else" => TokenType::Else,
