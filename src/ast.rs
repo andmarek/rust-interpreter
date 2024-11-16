@@ -149,6 +149,7 @@ impl Expression for Identifier {
     fn expression_node(&self) {}
 }
 
+#[derive(Debug)]
 pub struct ExpressionStatement {
     pub token: Token,
     pub expression: Option<Box<dyn Expression>>,
@@ -180,6 +181,7 @@ impl Node for Identifier {
     }
 }
 
+#[derive(Debug)]
 pub enum StatementType {
     Let(LetStatement),
     Return(ReturnStatement),

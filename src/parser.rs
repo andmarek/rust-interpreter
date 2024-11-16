@@ -4,6 +4,7 @@ use crate::ast::{
 };
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
+use std::any::Any;
 use std::collections::HashMap;
 use std::vec;
 
@@ -70,7 +71,10 @@ impl Parser {
         println!("Beginning to parse the program");
 
         while let Some(token) = &self.cur_token {
-            println!("Parsing the program, the current token is {:?}", token);
+            println!(
+                "----------Parsing the program, the current token is {:?}",
+                token
+            );
 
             let statement = self.parse_statement();
 
@@ -79,7 +83,7 @@ impl Parser {
                 Some(Ok(StatementType::Return(return_stmt))) => Box::new(return_stmt),
                 Some(Ok(StatementType::Expression(expression_stmt))) => Box::new(expression_stmt),
                 Some(Err(err)) => return Err(err),
-                None => break,
+                None => break, // None kinda implies EOF here, should change that.
             };
 
             println!("Statement is {:?}", boxed_statement);
@@ -102,15 +106,15 @@ impl Parser {
                     None
                 }
                 TokenType::Let => {
-                    println!("Let statement");
+                    println!("Parsing Let statement");
                     Some(self.parse_let_statement().map(StatementType::Let))
                 }
                 TokenType::Return => {
-                    println!("Return statement");
+                    println!("Parsing Return statement");
                     Some(self.parse_return_statement().map(StatementType::Return))
                 }
                 _ => {
-                    print!("Parsing expression statement");
+                    println!("Parsing Expression statement");
                     Some(
                         self.parse_expression_statement()
                             .map(StatementType::Expression),
@@ -122,11 +126,23 @@ impl Parser {
     }
 
     pub fn parse_expression_statement(&mut self) -> Result<ExpressionStatement, String> {
-        let cur_token = self.cur_token.clone().ok_or("No current token")?;
+        println!("EXPRESSION statement, cur_token: {:?}", self.cur_token);
+
         let statement = ExpressionStatement {
-            token: cur_token,
+            token: self.cur_token.clone().ok_or("No current token")?,
             expression: None,
         };
+
+        // skip the rest of the tokens until semicolon
+        while self.peek_token_is(TokenType::Semicolon) {
+            self.next_token();
+        }
+
+        println!(
+            "Here is the current token at the end of this!: {:?}",
+            self.cur_token
+        );
+
         return Ok(statement);
     }
 
@@ -357,6 +373,30 @@ mod tests {
                 panic!("Expected input, got {}", unwrapped_program.string());
             }
         }
+    }
+
+    #[test]
+    fn test_identifier_expression() {
+        let input = String::from("foobar;");
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+
+        // Test the parsing directly
+        match parser.parse_statement() {
+            Some(Ok(StatementType::Expression(expr_statement))) => {
+                assert_eq!(expr_statement.token.literal, "foobar");
+            }
+            Some(Ok(other)) => panic!("Expected expression statement, got {:?}", other),
+            Some(Err(err)) => panic!("Parser error: {}", err),
+            None => panic!("Expected Some statement, got None"),
+        }
+    }
+
+    fn check_errors(p: &Parser) {
+        if p.errors.len() == 0 {
+            return;
+        }
+        panic!("There were some errors in the parsing: {:?}", p.errors);
     }
 
     // #[test]
