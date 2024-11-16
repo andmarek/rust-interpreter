@@ -2,7 +2,7 @@ use std::vec;
 
 use crate::ast::{
     ExpressionStatement, Identifier, LetStatement, Node, Program, ReturnStatement, Statement,
-    StatementType,
+    StatementType, StringLiteral,
 };
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
@@ -116,17 +116,20 @@ impl Parser {
 
     pub fn parse_return_statement(&mut self) -> Result<ReturnStatement, String> {
         let cur_token = self.cur_token.clone().ok_or("No current token")?;
-        let statement = ReturnStatement {
+        let mut statement = ReturnStatement {
             token: cur_token,
             value: None,
         };
 
         // TODO: expression parsing is not implemented yet,
         // so we're skipping over the expression for now.
+        let mut rest = String::new();
         while !self.cur_token_is(TokenType::Semicolon) {
-            println!("Skipping token {:?}", self.cur_token);
             self.next_token();
+            rest.push_str(&self.cur_token.clone().unwrap().literal);
         }
+        statement.value = Some(Box::new(StringLiteral { value: rest }));
+
         Ok(statement)
     }
 
@@ -152,18 +155,12 @@ impl Parser {
         if !self.expect_peek(TokenType::Equals) {
             return Err("Expected equals sign after identifier in let statement".to_string());
         }
+        let mut rest = String::new();
         while !self.cur_token_is(TokenType::Semicolon) {
-            let cur_token = self.cur_token.clone().ok_or("No current token")?;
             self.next_token();
-            match staement.value {
-                Some(expr) => statement.value = Some(Box::new(cur_token)),
-                None => statement.value = Some(Box::new(ExpressionStatement {
-                    token: cur_token,
-                    expression: None,
-                })),
-            }
-            }
+            rest.push_str(&self.cur_token.clone().unwrap().literal);
         }
+        statement.value = Some(Box::new(StringLiteral { value: rest }));
         Ok(statement)
     }
 
@@ -293,13 +290,13 @@ mod tests {
             let unwrapped_program = program.unwrap();
 
             println!("Program is {:?}", unwrapped_program.statements[0].string());
-            if unwrapped_program.statements[0].string() != "let x = " {
+            if unwrapped_program.statements[0].string() != "let x = 5;" {
                 panic!(
                     "Expected let statement, got {}",
                     unwrapped_program.statements[0].string()
                 );
             }
-            if unwrapped_program.statements[1].string() != "return ;" {
+            if unwrapped_program.statements[1].string() != "return x;" {
                 panic!(
                     "Expected return statement, got {}",
                     unwrapped_program.statements[1].string()
@@ -333,7 +330,9 @@ mod tests {
             let unwrapped_program = program.unwrap();
 
             println!("Program is {:?}", unwrapped_program.string());
-            if unwrapped_program.string() != "input" {
+            if unwrapped_program.string()
+                != "let five = 5;let ten = 10;let add = fn(x,y){x+y;let result = add(five,ten);"
+            {
                 panic!("Expected input, got {}", unwrapped_program.string());
             }
         }

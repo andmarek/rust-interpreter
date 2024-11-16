@@ -81,7 +81,6 @@ impl Node for ReturnStatement {
         if let Some(value) = &self.value {
             out.push_str(&value.string());
         }
-        out.push_str(";");
         out
     }
 }
@@ -117,6 +116,24 @@ impl Node for LetStatement {
 pub struct Identifier {
     token: Token,
     value: String,
+}
+
+#[derive(Debug)]
+pub struct StringLiteral {
+    pub value: String,
+}
+
+impl Node for StringLiteral {
+    fn token_literal(&self) -> String {
+        self.value.clone()
+    }
+    fn string(&self) -> String {
+        return format!("{}", self.token_literal());
+    }
+}
+
+impl Expression for StringLiteral {
+    fn expression_node(&self) {}
 }
 
 impl Identifier {
