@@ -106,7 +106,6 @@ impl Parser {
             token: cur_token,
             expression: None,
         };
-
         return Ok(statement);
     }
 
@@ -149,15 +148,22 @@ impl Parser {
         statement.name = Some(Identifier::new(identifier));
 
         /* TODO: Change EQUALS to ASSIGN */
+
         if !self.expect_peek(TokenType::Equals) {
             return Err("Expected equals sign after identifier in let statement".to_string());
         }
-
-        /* TODO: implement the expression parsing. */
         while !self.cur_token_is(TokenType::Semicolon) {
+            let cur_token = self.cur_token.clone().ok_or("No current token")?;
             self.next_token();
+            match staement.value {
+                Some(expr) => statement.value = Some(Box::new(cur_token)),
+                None => statement.value = Some(Box::new(ExpressionStatement {
+                    token: cur_token,
+                    expression: None,
+                })),
+            }
+            }
         }
-
         Ok(statement)
     }
 
@@ -271,6 +277,64 @@ mod tests {
                     "Expected 2 statements, got {:?}",
                     unwrapped_program.statements.len()
                 );
+            }
+        }
+    }
+
+    #[test]
+    fn test_parse_let_and_return_statement() {
+        let input = String::from("let x = 5; return x;");
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+
+        let program = parser.parse_program();
+
+        if program.is_ok() {
+            let unwrapped_program = program.unwrap();
+
+            println!("Program is {:?}", unwrapped_program.statements[0].string());
+            if unwrapped_program.statements[0].string() != "let x = " {
+                panic!(
+                    "Expected let statement, got {}",
+                    unwrapped_program.statements[0].string()
+                );
+            }
+            if unwrapped_program.statements[1].string() != "return ;" {
+                panic!(
+                    "Expected return statement, got {}",
+                    unwrapped_program.statements[1].string()
+                );
+            }
+
+            if unwrapped_program.statements.len() != 2 {
+                panic!(
+                    "Expected 2 statements, got {:?}",
+                    unwrapped_program.statements.len()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_stringify_program() {
+        let input = String::from(
+            "let five = 5;
+            let ten = 10;
+            let add = fn(x, y) {
+                x + y;
+            };
+            let result = add(five, ten);
+            ",
+        );
+        let lexer = Lexer::new(input);
+        let mut parser = Parser::new(lexer);
+        let program = parser.parse_program();
+        if program.is_ok() {
+            let unwrapped_program = program.unwrap();
+
+            println!("Program is {:?}", unwrapped_program.string());
+            if unwrapped_program.string() != "input" {
+                panic!("Expected input, got {}", unwrapped_program.string());
             }
         }
     }
