@@ -1,17 +1,24 @@
-use std::vec;
-
 use crate::ast::{
-    ExpressionStatement, Identifier, LetStatement, Node, Program, ReturnStatement, Statement,
-    StatementType, StringLiteral,
+    Expression, ExpressionStatement, Identifier, LetStatement, Node, Program, ReturnStatement,
+    Statement, StatementType, StringLiteral,
 };
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
+use std::collections::HashMap;
+use std::vec;
+
+struct ParsingFunctions {
+    pub prefix: fn() -> Box<dyn Expression>,
+    pub infix: fn(Box<dyn Expression>) -> Box<dyn Expression>,
+}
 
 pub struct Parser {
     lexer: Lexer,
     cur_token: Option<Token>,
     peek_token: Option<Token>,
     errors: Vec<String>,
+    prefix_parse_fns: HashMap<TokenType, fn() -> Box<dyn Expression>>,
+    infix_parse_fns: HashMap<TokenType, fn(Box<dyn Expression>) -> Box<dyn Expression>>,
 }
 
 impl Parser {
@@ -22,6 +29,8 @@ impl Parser {
             cur_token: None,
             peek_token: None,
             errors: vec![],
+            prefix_parse_fns: HashMap::new(),
+            infix_parse_fns: HashMap::new(),
         };
         parser.next_token();
         parser.next_token();
@@ -41,6 +50,18 @@ impl Parser {
 
     pub fn get_errors(self) -> Vec<String> {
         return self.errors.clone();
+    }
+
+    pub fn register_prefix(&mut self, token_type: TokenType, f: fn() -> Box<dyn Expression>) {
+        self.prefix_parse_fns.insert(token_type, f);
+    }
+
+    pub fn register_infix(
+        &mut self,
+        token_type: TokenType,
+        f: fn(Box<dyn Expression>) -> Box<dyn Expression>,
+    ) {
+        self.infix_parse_fns.insert(token_type, f);
     }
 
     pub fn parse_program(&mut self) -> Result<Program, String> {
