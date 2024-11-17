@@ -22,6 +22,18 @@ pub struct Parser {
     infix_parse_fns: HashMap<TokenType, fn(Box<dyn Expression>) -> Box<dyn Expression>>,
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Precedence {
+    Lowest = 0,
+    Equals = 1,      // ==
+    LessGreater = 2, // > or
+    Sum = 3,         // +
+    Product = 4,     // *
+    Prefix = 5,      // -X or !X
+    Call = 6,        // myFunction(X)
+    Index = 7,       // array[index]
+}
+
 impl Parser {
     pub fn new(lexer: Lexer) -> Self {
         println!("{:?}", lexer.get_input());
@@ -48,6 +60,15 @@ impl Parser {
             self.peek_token.clone().unwrap().literal
         );
     }
+
+    /*
+    pub fn parse_identifier(&mut self) -> Box<dyn Expression> {
+        Box::new(Identifier {
+            token: self.cur_token.as_ref().unwrap(),
+            value: self.cur_token.as_ref().unwrap().literal,
+        })
+    }
+    */
 
     pub fn get_errors(self) -> Vec<String> {
         return self.errors.clone();
@@ -138,6 +159,8 @@ impl Parser {
             self.next_token();
         }
 
+        //statement.expression = self.parse_expression(LOWEST);
+
         println!(
             "Here is the current token at the end of this!: {:?}",
             self.cur_token
@@ -146,9 +169,20 @@ impl Parser {
         return Ok(statement);
     }
 
-    // Should this return a value?
-    pub fn parse_expression(&mut self) -> Result<Token, String> {
-        unimplemented!()
+    pub fn parse_expression(&mut self) -> Option<Box<dyn Expression>> {
+        match &self.cur_token {
+            Some(token) => match token.token_type {
+                TokenType::Ident => Some(Box::new(Identifier::new(token.clone()))),
+                _ => {
+                    if let Some(prefix_fn) = self.prefix_parse_fns.get(&token.token_type) {
+                        Some(prefix_fn())
+                    } else {
+                        None
+                    }
+                }
+            },
+            None => None,
+        }
     }
 
     pub fn parse_return_statement(&mut self) -> Result<ReturnStatement, String> {
