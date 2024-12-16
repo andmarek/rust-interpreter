@@ -1,4 +1,4 @@
-use crate::token::{Token, TokenType};
+use crate::token::Token;
 use std::fmt;
 
 pub trait Node {
@@ -6,6 +6,19 @@ pub trait Node {
     fn string(&self) -> String;
 }
 
+#[derive(Debug)]
+pub enum ExpressionType {
+    Identifier(Identifier),
+    StringLiteral(StringLiteral),
+}
+impl ExpressionType {
+    pub fn string(&self) -> String {
+        match self {
+            ExpressionType::Identifier(id) => id.token.literal.clone(),
+            ExpressionType::StringLiteral(sl) => sl.token_literal(),
+        }
+    }
+}
 pub trait Statement: Node {
     fn statement_node(&self);
 }
@@ -18,7 +31,7 @@ pub trait Expression: Node + std::fmt::Debug {
 a list of statements. */
 #[derive(Debug)]
 pub struct Program {
-    pub statements: Vec<Box<dyn Statement>>,
+    pub statements: Vec<StatementType>,
 }
 
 impl Program {
@@ -38,7 +51,7 @@ impl fmt::Debug for dyn Statement {
 impl Node for Program {
     fn token_literal(&self) -> String {
         if self.statements.len() > 0 {
-            self.statements[0].token_literal()
+            self.statements[0].token().literal.clone()
         } else {
             String::from("")
         }
@@ -57,13 +70,13 @@ impl Node for Program {
 pub struct LetStatement {
     pub token: Token,
     pub name: Option<Identifier>,
-    pub value: Option<Box<dyn Expression>>,
+    pub value: Option<ExpressionType>,
 }
 
 #[derive(Debug)]
 pub struct ReturnStatement {
     pub token: Token,
-    pub value: Option<Box<dyn Expression>>,
+    pub value: Option<ExpressionType>,
 }
 
 impl Statement for ReturnStatement {
@@ -114,13 +127,19 @@ impl Node for LetStatement {
 /* Identifier implementation */
 #[derive(Debug)]
 pub struct Identifier {
-    token: Token,
-    value: String,
+    pub token: Token,
+    pub value: String,
 }
 
 #[derive(Debug)]
 pub struct StringLiteral {
     pub value: String,
+}
+
+impl StringLiteral {
+    pub fn new(value: String) -> StringLiteral {
+        StringLiteral { value }
+    }
 }
 
 impl Node for StringLiteral {
@@ -134,6 +153,27 @@ impl Node for StringLiteral {
 
 impl Expression for StringLiteral {
     fn expression_node(&self) {}
+}
+
+#[derive(Debug)]
+pub struct NumberLiteral {
+    pub token: Token,
+    pub value: i64,
+}
+
+impl NumberLiteral {
+    pub fn new(&mut self, token: Token, value: i64) -> NumberLiteral {
+        NumberLiteral { token, value }
+    }
+}
+
+impl Node for NumberLiteral {
+    fn token_literal(&self) -> String {
+        self.value.clone().to_string()
+    }
+    fn string(&self) -> String {
+        self.token_literal()
+    }
 }
 
 impl Identifier {
@@ -152,7 +192,7 @@ impl Expression for Identifier {
 #[derive(Debug)]
 pub struct ExpressionStatement {
     pub token: Token,
-    pub expression: Option<Box<dyn Expression>>,
+    pub expression: Option<ExpressionType>,
 }
 
 impl Statement for ExpressionStatement {
@@ -186,4 +226,22 @@ pub enum StatementType {
     Let(LetStatement),
     Return(ReturnStatement),
     Expression(ExpressionStatement),
+}
+
+impl StatementType {
+    pub fn token(&self) -> &Token {
+        match self {
+            StatementType::Let(s) => &s.token,
+            StatementType::Return(s) => &s.token,
+            StatementType::Expression(s) => &s.token,
+        }
+    }
+
+    pub fn string(&self) -> String {
+        match self {
+            StatementType::Let(s) => s.string(),
+            StatementType::Return(s) => s.string(),
+            StatementType::Expression(s) => s.string(),
+        }
+    }
 }

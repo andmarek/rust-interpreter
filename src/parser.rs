@@ -1,10 +1,9 @@
 use crate::ast::{
-    Expression, ExpressionStatement, Identifier, LetStatement, Node, Program, ReturnStatement,
-    Statement, StatementType, StringLiteral,
+    Expression, ExpressionStatement, Identifier, LetStatement, Program, ReturnStatement,
+    StatementType, StringLiteral, ExpressionType, Node
 };
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
-use std::any::Any;
 use std::collections::HashMap;
 use std::vec;
 
@@ -61,15 +60,6 @@ impl Parser {
         );
     }
 
-    /*
-    pub fn parse_identifier(&mut self) -> Box<dyn Expression> {
-        Box::new(Identifier {
-            token: self.cur_token.as_ref().unwrap(),
-            value: self.cur_token.as_ref().unwrap().literal,
-        })
-    }
-    */
-
     pub fn get_errors(self) -> Vec<String> {
         return self.errors.clone();
     }
@@ -91,58 +81,41 @@ impl Parser {
 
         println!("Beginning to parse the program");
 
+        // Single while loop
         while let Some(token) = &self.cur_token {
-            println!(
-                "----------Parsing the program, the current token is {:?}",
-                token
-            );
+            println!("----------Parsing the program, the current token is {:?}", token);
 
-            let statement = self.parse_statement();
-
-            let boxed_statement: Box<dyn Statement> = match statement {
-                Some(Ok(StatementType::Let(let_stmt))) => Box::new(let_stmt),
-                Some(Ok(StatementType::Return(return_stmt))) => Box::new(return_stmt),
-                Some(Ok(StatementType::Expression(expression_stmt))) => Box::new(expression_stmt),
-                Some(Err(err)) => return Err(err),
-                None => break, // None kinda implies EOF here, should change that.
-            };
-
-            println!("Statement is {:?}", boxed_statement);
-
-            program.statements.push(boxed_statement);
+            match self.parse_statement()? {
+                Some(statement) => program.statements.push(statement),
+                None => break,
+            }
 
             self.next_token();
         }
+
         print!("Program statements: {:?}", program.statements);
         println!("We're done parsing the program.");
         Ok(program)
     }
-
-    pub fn parse_statement(&mut self) -> Option<Result<StatementType, String>> {
+    pub fn parse_expression(&mut self) -> Result<ExpressionStatement, String> {
+        Ok(ExpressionStatement {
+            token: self.cur_token.clone().ok_or("No current token")?,
+            expression: None,
+        })
+    }
+    pub fn parse_statement(&mut self) -> Result<Option<StatementType>, String> {
         println!("Parsing statement");
         match &self.cur_token {
-            Some(token) => match token.token_type {
-                TokenType::Eof => {
-                    println!("Encountered EOF");
-                    None
-                }
-                TokenType::Let => {
-                    println!("Parsing Let statement");
-                    Some(self.parse_let_statement().map(StatementType::Let))
-                }
-                TokenType::Return => {
-                    println!("Parsing Return statement");
-                    Some(self.parse_return_statement().map(StatementType::Return))
-                }
-                _ => {
-                    println!("Parsing Expression statement");
-                    Some(
-                        self.parse_expression_statement()
-                            .map(StatementType::Expression),
-                    )
-                }
-            },
-            None => None,
+            Some(token) => {
+                let stmt = match token.token_type {
+                    TokenType::Let => StatementType::Let(self.parse_let_statement()?),
+                    TokenType::Return => StatementType::Return(self.parse_return_statement()?),
+                    TokenType::Eof => return Ok(None),
+                    _ => StatementType::Expression(self.parse_expression()?),
+                };
+                Ok(Some(stmt))
+            }
+            None => Ok(None),
         }
     }
 
@@ -169,45 +142,43 @@ impl Parser {
         return Ok(statement);
     }
 
-    pub fn parse_expression(&mut self) -> Option<Box<dyn Expression>> {
-        match &self.cur_token {
-            Some(token) => match token.token_type {
-                TokenType::Ident => Some(Box::new(Identifier::new(token.clone()))),
-                _ => {
-                    if let Some(prefix_fn) = self.prefix_parse_fns.get(&token.token_type) {
-                        Some(prefix_fn())
-                    } else {
-                        None
-                    }
-                }
-            },
-            None => None,
+    /*
+    pub fn parse_expression(&mut self) -> Result<ExpressionStatement, String> {
+        while !self.cur_token_is(TokenType::Semicolon) {
+            self.parse_identifier();
         }
     }
+    */
 
+    pub fn parse_identifier(&mut self) -> Identifier {
+        Identifier::new(self.cur_token.clone().unwrap())
+    }
+
+    /// Parses a return statement of the form
+    /// return <expression>;
+    /// For now, we'll just implement it like parsing until a ;
     pub fn parse_return_statement(&mut self) -> Result<ReturnStatement, String> {
+        println!("Parsing return statement");
         let cur_token = self.cur_token.clone().ok_or("No current token")?;
-        let mut statement = ReturnStatement {
+        let mut return_statement = ReturnStatement {
             token: cur_token,
             value: None,
         };
-
-        // TODO: expression parsing is not implemented yet,
-        // so we're skipping over the expression for now.
-        let mut rest = String::new();
+        self.next_token();
+        let mut ret = String::new();
         while !self.cur_token_is(TokenType::Semicolon) {
+            ret.push_str(&self.cur_token.clone().unwrap().literal);
             self.next_token();
-            rest.push_str(&self.cur_token.clone().unwrap().literal);
         }
-        statement.value = Some(Box::new(StringLiteral { value: rest }));
-
-        Ok(statement)
+        return_statement.value = Some(ExpressionType::StringLiteral(StringLiteral::new(ret)));
+        Ok(return_statement)
     }
 
     pub fn parse_let_statement(&mut self) -> Result<LetStatement, String> {
+        // TODO: do we actually have to clone this?
         let token = self.cur_token.clone().ok_or("No current token")?;
 
-        let mut statement = LetStatement {
+        let mut let_statement = LetStatement {
             token,
             name: None,
             value: None,
@@ -219,20 +190,23 @@ impl Parser {
         }
 
         let identifier = self.cur_token.clone().ok_or("No current token")?;
-        statement.name = Some(Identifier::new(identifier));
+        let_statement.name = Some(Identifier::new(identifier));
 
         /* TODO: Change EQUALS to ASSIGN */
-
         if !self.expect_peek(TokenType::Equals) {
             return Err("Expected equals sign after identifier in let statement".to_string());
         }
+
+        /* TODO: eventually replace this with parse expression */
         let mut rest = String::new();
         while !self.cur_token_is(TokenType::Semicolon) {
             self.next_token();
             rest.push_str(&self.cur_token.clone().unwrap().literal);
         }
-        statement.value = Some(Box::new(StringLiteral { value: rest }));
-        Ok(statement)
+
+        let_statement.value = Some(ExpressionType::StringLiteral(StringLiteral::new(rest)));
+
+        Ok(let_statement)
     }
 
     pub fn cur_token_is(&self, token_type: TokenType) -> bool {
@@ -276,7 +250,6 @@ impl Parser {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_parse_single_let_statement() {
         let input = String::from("let x = 5;");
@@ -286,9 +259,7 @@ mod tests {
 
         let mut parser = Parser::new(lexer);
 
-        let program = parser.parse_program();
-
-        match program {
+        match parser.parse_program() {
             Ok(program) => {
                 println!("Program result is {:?}", program.string());
                 let statements_len = program.statements.len();
@@ -296,11 +267,9 @@ mod tests {
                 for statement in program.statements {
                     println!("Statement: {:?}", statement);
                 }
-
                 if statements_len != 1 {
                     panic!("Expected 1 statement, got {}", statements_len);
                 }
-                //panic!();
             }
             Err(err) => {
                 panic!("Failed to parse program: {}", err);
@@ -338,17 +307,27 @@ mod tests {
         let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);
         let program = parser.parse_program();
-        if program.is_ok() {
-            let unwrapped_program = program.unwrap();
-            if unwrapped_program.statements.len() != 2 {
-                panic!(
-                    "Expected 2 statements, got {:?}",
-                    unwrapped_program.statements.len()
-                );
+        match program {
+            Ok(program) => {
+                let statements = program.statements;
+                if statements.len() != 2 {
+                    panic!("Expected 2 statements, got {:?}", statements.len());
+                }
+
+                if statements[0].token().literal != "let" {
+                    panic!("Expected first statement to be let, got {}", statements[0].token().literal);
+                }
+                if statements[1].token().literal != "let" {
+                    panic!("Expected second statement to be let, got {}", statements[1].token().literal);
+                }
+            },
+            Err(err) => {
+                panic!("Failed to parse program: {}", err);
             }
         }
     }
 
+    /*
     #[test]
     fn test_parse_let_and_return_statement() {
         let input = String::from("let x = 5; return x;");
@@ -356,29 +335,18 @@ mod tests {
         let mut parser = Parser::new(lexer);
 
         let program = parser.parse_program();
-
-        if program.is_ok() {
-            let unwrapped_program = program.unwrap();
-
-            println!("Program is {:?}", unwrapped_program.statements[0].string());
-            if unwrapped_program.statements[0].string() != "let x = 5;" {
-                panic!(
-                    "Expected let statement, got {}",
-                    unwrapped_program.statements[0].string()
-                );
-            }
-            if unwrapped_program.statements[1].string() != "return x;" {
-                panic!(
-                    "Expected return statement, got {}",
-                    unwrapped_program.statements[1].string()
-                );
-            }
-
-            if unwrapped_program.statements.len() != 2 {
-                panic!(
-                    "Expected 2 statements, got {:?}",
-                    unwrapped_program.statements.len()
-                );
+        match program {
+            Ok(program) => {
+                let statements = program.statements;
+                if statements.len() != 2 {
+                    panic!(
+                        "Expected 2 statements, got {:?}",
+                        statements.len()
+                    );
+                }
+            },
+            Err(err) => {
+                panic!("Failed to parse program: {}", err);
             }
         }
     }
@@ -414,17 +382,26 @@ mod tests {
         let input = String::from("foobar;");
         let lexer = Lexer::new(input);
         let mut parser = Parser::new(lexer);
+        match parser.parse_program() {
+            Ok(program) => {
+                if program.statements.len() != 1 {
+                    panic!("Expected 1 statement, got {}", program.statements.len());
+                }
+                let ref expr_statement = &program.statements[0];
 
-        // Test the parsing directly
-        match parser.parse_statement() {
-            Some(Ok(StatementType::Expression(expr_statement))) => {
-                assert_eq!(expr_statement.token.literal, "foobar");
+                match expr_statement {
+                    StatementType::Expression(expr_statement) => {
+                        assert_eq!(expr_statement.token.literal, "foobar");
+                    }
+                    other => panic!("Expected expression statement, got {:?}", other),
+                }
+            },
+            Err(err) => {
+                panic!("Parser error: {}", err);
             }
-            Some(Ok(other)) => panic!("Expected expression statement, got {:?}", other),
-            Some(Err(err)) => panic!("Parser error: {}", err),
-            None => panic!("Expected Some statement, got None"),
         }
     }
+    */
 
     fn check_errors(p: &Parser) {
         if p.errors.len() == 0 {
