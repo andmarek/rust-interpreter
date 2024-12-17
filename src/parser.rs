@@ -1,6 +1,6 @@
 use crate::ast::{
-    Expression, ExpressionStatement, Identifier, LetStatement, Program, ReturnStatement,
-    StatementType, StringLiteral, ExpressionType, Node
+    Expression, ExpressionStatement, ExpressionType, Identifier, LetStatement, Node, Program,
+    ReturnStatement, StatementType, StringLiteral,
 };
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
@@ -8,8 +8,8 @@ use std::collections::HashMap;
 use std::vec;
 
 struct ParsingFunctions {
-    pub prefix: fn() -> Result<ExpressionType, String>,
-    pub infix: fn(ExpressionType) -> Result<ExpressionType, String>,
+    pub prefix: fn() -> ExpressionType,
+    pub infix: fn(ExpressionType) -> ExpressionType,
 }
 
 pub struct Parser {
@@ -19,8 +19,8 @@ pub struct Parser {
     errors: Vec<String>,
     // Each token we encounter can one of two types of functions associated with parsing it,
     // depending on whether the token is found in the infix or prefix position
-    prefix_parse_fns: HashMap<TokenType, fn() -> Result<ExpressionType, String>>,
-    infix_parse_fns: HashMap<TokenType, fn(ExpressionType) -> Result<ExpressionType, String>>,
+    prefix_parse_fns: HashMap<TokenType, fn(&mut Parser) -> ExpressionType>,
+    infix_parse_fns: HashMap<TokenType, fn(&mut Parser, ExpressionType) -> ExpressionType>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -46,6 +46,10 @@ impl Parser {
             prefix_parse_fns: HashMap::new(),
             infix_parse_fns: HashMap::new(),
         };
+
+        // Register parse functions for each type of expression
+        parser.register_prefix(TokenType::Ident, Self::parse_identifier);
+
         parser.next_token();
         parser.next_token();
         parser
@@ -67,7 +71,7 @@ impl Parser {
     }
 
     /// Adds a prefix parsing function for a given token type
-    pub fn register_prefix(&mut self, token_type: TokenType, f: fn() -> Result<ExpressionType, String>) {
+    pub fn register_prefix(&mut self, token_type: TokenType, f: fn(&mut Parser) -> ExpressionType) {
         self.prefix_parse_fns.insert(token_type, f);
     }
 
@@ -75,7 +79,7 @@ impl Parser {
     pub fn register_infix(
         &mut self,
         token_type: TokenType,
-        f: fn(ExpressionType) -> Result<ExpressionType, String>,
+        f: fn(&mut Parser, ExpressionType) -> ExpressionType,
     ) {
         self.infix_parse_fns.insert(token_type, f);
     }
@@ -89,7 +93,10 @@ impl Parser {
 
         // Single while loop
         while let Some(token) = &self.cur_token {
-            println!("----------Parsing the program, the current token is {:?}", token);
+            println!(
+                "----------Parsing the program, the current token is {:?}",
+                token
+            );
 
             match self.parse_statement()? {
                 Some(statement) => program.statements.push(statement),
@@ -103,16 +110,25 @@ impl Parser {
         println!("We're done parsing the program.");
         Ok(program)
     }
+
+
     pub fn parse_expression(&mut self, precedence: Precedence) -> Result<ExpressionType, String> {
         let token_type = match &self.cur_token {
             Some(token) => &token.token_type,
             None => return Err("No current token".to_string()),
         };
+
         let prefix = self.prefix_parse_fns.get(token_type);
-        match &prefix {
-            Some(f) => f(),
-            None => return Err(format!("No prefix parsing function for token type {:?}", token_type)),
-        }
+
+        Ok(match prefix {
+            Some(prefix_fn) => prefix_fn(self),
+            None => {
+                return Err(format!(
+                    "No prefix parsing function for token type {:?}",
+                    token_type
+                ))
+            }
+        })
     }
 
     pub fn parse_statement(&mut self) -> Result<Option<StatementType>, String> {
@@ -123,7 +139,7 @@ impl Parser {
                     TokenType::Let => StatementType::Let(self.parse_let_statement()?),
                     TokenType::Return => StatementType::Return(self.parse_return_statement()?),
                     TokenType::Eof => return Ok(None),
-                    _ => StatementType::Expression(self.parse_expression()?),
+                    _ => StatementType::Expression(self.parse_expression_statement()?),
                 };
                 Ok(Some(stmt))
             }
@@ -164,8 +180,8 @@ impl Parser {
     }
     */
 
-    pub fn parse_identifier(&mut self) -> Identifier {
-        Identifier::new(self.cur_token.clone().unwrap())
+    pub fn parse_identifier(&mut self) -> ExpressionType {
+        ExpressionType::Identifier(Identifier::new(self.cur_token.clone().unwrap()))
     }
 
     /// Parses a return statement of the form
@@ -329,7 +345,10 @@ mod tests {
                 }
 
                 if statements[0].token().literal != "let" {
-                    panic!("Expected first statement to be let, got {}", statements[0].token().literal);
+                    panic!(
+                        "Expected first statement to be let, got {}",
+                        statements[0].token().literal
+                    );
                 }
                 match &statements[0] {
                     StatementType::Let(let_stmt) => {
@@ -338,14 +357,20 @@ mod tests {
                                 panic!("Expected name to be x, got {}", name.token.literal);
                             }
                         }
-                    },
-                    _ => panic!("Expected first statement to be a let statement, got {:?}", statements[0]),
+                    }
+                    _ => panic!(
+                        "Expected first statement to be a let statement, got {:?}",
+                        statements[0]
+                    ),
                 }
 
                 if statements[1].token().literal != "let" {
-                    panic!("Expected second statement to be let, got {}", statements[1].token().literal);
+                    panic!(
+                        "Expected second statement to be let, got {}",
+                        statements[1].token().literal
+                    );
                 }
-            },
+            }
             Err(err) => {
                 panic!("Failed to parse program: {}", err);
             }
@@ -363,12 +388,9 @@ mod tests {
             Ok(program) => {
                 let statements = program.statements;
                 if statements.len() != 2 {
-                    panic!(
-                        "Expected 2 statements, got {:?}",
-                        statements.len()
-                    );
+                    panic!("Expected 2 statements, got {:?}", statements.len());
                 }
-            },
+            }
             Err(err) => {
                 panic!("Failed to parse program: {}", err);
             }
@@ -419,7 +441,7 @@ mod tests {
                     }
                     other => panic!("Expected expression statement, got {:?}", other),
                 }
-            },
+            }
             Err(err) => {
                 panic!("Parser error: {}", err);
             }
