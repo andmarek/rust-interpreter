@@ -8,8 +8,8 @@ use std::collections::HashMap;
 use std::vec;
 
 struct ParsingFunctions {
-    pub prefix: fn() -> Box<dyn Expression>,
-    pub infix: fn(Box<dyn Expression>) -> Box<dyn Expression>,
+    pub prefix: fn() -> Result<ExpressionType, String>,
+    pub infix: fn(ExpressionType) -> Result<ExpressionType, String>,
 }
 
 pub struct Parser {
@@ -17,8 +17,10 @@ pub struct Parser {
     cur_token: Option<Token>,
     peek_token: Option<Token>,
     errors: Vec<String>,
-    prefix_parse_fns: HashMap<TokenType, fn() -> Box<dyn Expression>>,
-    infix_parse_fns: HashMap<TokenType, fn(Box<dyn Expression>) -> Box<dyn Expression>>,
+    // Each token we encounter can one of two types of functions associated with parsing it,
+    // depending on whether the token is found in the infix or prefix position
+    prefix_parse_fns: HashMap<TokenType, fn() -> Result<ExpressionType, String>>,
+    infix_parse_fns: HashMap<TokenType, fn(ExpressionType) -> Result<ExpressionType, String>>,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -64,18 +66,22 @@ impl Parser {
         return self.errors.clone();
     }
 
-    pub fn register_prefix(&mut self, token_type: TokenType, f: fn() -> Box<dyn Expression>) {
+    /// Adds a prefix parsing function for a given token type
+    pub fn register_prefix(&mut self, token_type: TokenType, f: fn() -> Result<ExpressionType, String>) {
         self.prefix_parse_fns.insert(token_type, f);
     }
 
+    /// Adds an infix parsing function for a given token type
     pub fn register_infix(
         &mut self,
         token_type: TokenType,
-        f: fn(Box<dyn Expression>) -> Box<dyn Expression>,
+        f: fn(ExpressionType) -> Result<ExpressionType, String>,
     ) {
         self.infix_parse_fns.insert(token_type, f);
     }
 
+    /// Main function that gets called to parse the entire program.
+    /// A program consists of a list of statements that are parsed one at a time.
     pub fn parse_program(&mut self) -> Result<Program, String> {
         let mut program = Program::new();
 
@@ -97,12 +103,18 @@ impl Parser {
         println!("We're done parsing the program.");
         Ok(program)
     }
-    pub fn parse_expression(&mut self) -> Result<ExpressionStatement, String> {
-        Ok(ExpressionStatement {
-            token: self.cur_token.clone().ok_or("No current token")?,
-            expression: None,
-        })
+    pub fn parse_expression(&mut self, precedence: Precedence) -> Result<ExpressionType, String> {
+        let token_type = match &self.cur_token {
+            Some(token) => &token.token_type,
+            None => return Err("No current token".to_string()),
+        };
+        let prefix = self.prefix_parse_fns.get(token_type);
+        match &prefix {
+            Some(f) => f(),
+            None => return Err(format!("No prefix parsing function for token type {:?}", token_type)),
+        }
     }
+
     pub fn parse_statement(&mut self) -> Result<Option<StatementType>, String> {
         println!("Parsing statement");
         match &self.cur_token {
@@ -122,17 +134,19 @@ impl Parser {
     pub fn parse_expression_statement(&mut self) -> Result<ExpressionStatement, String> {
         println!("EXPRESSION statement, cur_token: {:?}", self.cur_token);
 
-        let statement = ExpressionStatement {
+        let mut statement = ExpressionStatement {
             token: self.cur_token.clone().ok_or("No current token")?,
             expression: None,
         };
 
-        // skip the rest of the tokens until semicolon
+        statement.expression = match self.parse_expression(Precedence::Lowest) {
+            Ok(expr) => Some(expr),
+            Err(err) => return Err(err),
+        };
+
         while self.peek_token_is(TokenType::Semicolon) {
             self.next_token();
         }
-
-        //statement.expression = self.parse_expression(LOWEST);
 
         println!(
             "Here is the current token at the end of this!: {:?}",
@@ -317,6 +331,17 @@ mod tests {
                 if statements[0].token().literal != "let" {
                     panic!("Expected first statement to be let, got {}", statements[0].token().literal);
                 }
+                match &statements[0] {
+                    StatementType::Let(let_stmt) => {
+                        if let Some(name) = &let_stmt.name {
+                            if name.token.literal != "x" {
+                                panic!("Expected name to be x, got {}", name.token.literal);
+                            }
+                        }
+                    },
+                    _ => panic!("Expected first statement to be a let statement, got {:?}", statements[0]),
+                }
+
                 if statements[1].token().literal != "let" {
                     panic!("Expected second statement to be let, got {}", statements[1].token().literal);
                 }
@@ -327,7 +352,6 @@ mod tests {
         }
     }
 
-    /*
     #[test]
     fn test_parse_let_and_return_statement() {
         let input = String::from("let x = 5; return x;");
@@ -401,7 +425,6 @@ mod tests {
             }
         }
     }
-    */
 
     fn check_errors(p: &Parser) {
         if p.errors.len() == 0 {
