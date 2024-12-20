@@ -10,12 +10,14 @@ pub trait Node {
 pub enum ExpressionType {
     Identifier(Identifier),
     StringLiteral(StringLiteral),
+    IntegerLiteral(IntegerLiteral),
 }
 impl ExpressionType {
     pub fn string(&self) -> String {
         match self {
             ExpressionType::Identifier(id) => id.token.literal.clone(),
             ExpressionType::StringLiteral(sl) => sl.token_literal(),
+            ExpressionType::IntegerLiteral(il) => il.token_literal(),
         }
     }
 }
@@ -222,10 +224,35 @@ impl Node for Identifier {
 }
 
 #[derive(Debug)]
+pub struct IntegerLiteral {
+    pub token: Token,
+    pub value: i32,
+}
+
+impl IntegerLiteral {
+    pub fn new(token: Token, value: i32) -> IntegerLiteral{
+        IntegerLiteral {
+            token,
+            value
+        }
+    }
+}
+
+impl Node for IntegerLiteral {
+    fn token_literal(&self) -> String {
+        self.value.clone().to_string()
+    }
+    fn string(&self) -> String {
+        self.token_literal()
+    }
+}
+
+#[derive(Debug)]
 pub enum StatementType {
     Let(LetStatement),
     Return(ReturnStatement),
     Expression(ExpressionStatement),
+    Integer(IntegerLiteral)
 }
 
 impl StatementType {
@@ -234,6 +261,7 @@ impl StatementType {
             StatementType::Let(s) => &s.token,
             StatementType::Return(s) => &s.token,
             StatementType::Expression(s) => &s.token,
+            StatementType::Integer(s) => &s.token,
         }
     }
 
@@ -242,6 +270,7 @@ impl StatementType {
             StatementType::Let(s) => s.string(),
             StatementType::Return(s) => s.string(),
             StatementType::Expression(s) => s.string(),
+            StatementType::Integer(s) => s.string(),
         }
     }
 }

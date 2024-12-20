@@ -1,6 +1,6 @@
 use crate::ast::{
     Expression, ExpressionStatement, ExpressionType, Identifier, LetStatement, Node, Program,
-    ReturnStatement, StatementType, StringLiteral,
+    ReturnStatement, StatementType, StringLiteral, IntegerLiteral
 };
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
@@ -49,6 +49,7 @@ impl Parser {
 
         // Register parse functions for each type of expression
         parser.register_prefix(TokenType::Ident, Self::parse_identifier);
+        parser.register_prefix(TokenType::Int, Self::parse_integer_literal);
 
         parser.next_token();
         parser.next_token();
@@ -172,6 +173,18 @@ impl Parser {
         return Ok(statement);
     }
 
+    pub fn parse_integer_literal(&mut self) -> ExpressionType{
+        let cur_token = match self.cur_token.as_ref() {
+            Some(tok) => tok,
+            None => panic!("Ahhhh")
+        };
+        let integer_value = cur_token.literal.parse::<i32>().unwrap();
+
+        ExpressionType::IntegerLiteral(IntegerLiteral{
+            token: self.cur_token.clone().unwrap(),
+            value: integer_value
+        })
+    }
     /*
     pub fn parse_expression(&mut self) -> Result<ExpressionStatement, String> {
         while !self.cur_token_is(TokenType::Semicolon) {
@@ -453,6 +466,35 @@ mod tests {
             return;
         }
         panic!("There were some errors in the parsing: {:?}", p.errors);
+    }
+
+    #[test]
+    fn test_integer_literal() {
+        let l = Lexer::new(String::from("5;"));
+        let mut p = Parser::new(l);
+
+        match p.parse_program() {
+            Ok(program)=> {
+                if program.statements.len() != 1 {
+                    panic!("program has not enough statements, got {:?}", program.statements.len())
+                }
+                match &program.statements[0] {
+                    StatementType::Expression(expr_stmt) => {
+                        if let Some(ExpressionType::IntegerLiteral(int_literal)) =
+                        &expr_stmt.expression {
+                            assert_eq!(int_literal.value, 5);
+                            assert_eq!(int_literal.token.literal, "5");
+                        }
+                    else {
+                        panic!("Expression is not an integer literal");
+                    }
+                },
+                _ => panic!("Statement is not an expression statement"),
+                }
+            },
+            Err(err) => panic!("Parser error: {}", err),
+        }
+
     }
 
     // #[test]
