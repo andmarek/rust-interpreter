@@ -31,7 +31,7 @@ pub enum TokenType {
     RightBracket,
     LeftParens,
     RightParens,
-    ExclamationMark,
+    Bang,
     Dot,
     Pipe,
     Backslash,

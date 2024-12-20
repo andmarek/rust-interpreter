@@ -50,7 +50,7 @@ impl Parser {
         // Register parse functions for each type of expression
         parser.register_prefix(TokenType::Ident, Self::parse_identifier);
         parser.register_prefix(TokenType::Int, Self::parse_integer_literal);
-        parser.register_prefix(TokenType::ExclamationMark, Self::parse_prefix_expression);
+        parser.register_prefix(TokenType::Bang, Self::parse_prefix_expression);
         parser.register_prefix(TokenType::Minus, Self::parse_prefix_expression);
 
         parser.next_token();

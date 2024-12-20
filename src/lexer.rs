@@ -130,7 +130,7 @@ impl Lexer {
                             self.read_char();
                             Token::new(TokenType::ExclaimationMarkEquals, "!=".to_string())
                         } else {
-                            Lexer::new_token(TokenType::ExclamationMark, ch)
+                            Lexer::new_token(TokenType::Bang, ch)
                         }
                     }
                     '=' => {
