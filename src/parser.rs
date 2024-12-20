@@ -1,3 +1,4 @@
+// TODO: implement check errors, we should get in the habit of doing that
 use crate::ast::{
     Expression, ExpressionStatement, ExpressionType, Identifier, LetStatement, Node, Program,
     ReturnStatement, StatementType, StringLiteral, IntegerLiteral
@@ -494,8 +495,41 @@ mod tests {
             },
             Err(err) => panic!("Parser error: {}", err),
         }
-
     }
+
+
+    /*
+    #[test]
+    pub fn test_parsing_prefix_expression() {
+        //let tup: (&str, &str, i32) =  ("!5;", "!", 5);
+        //let tup: (&str, &str, i32) =  ("!5;", "!", 5);
+        let test_data = [
+            ("!5;", "!", 5),
+            ("-15;", "-", 15)
+        ];
+        for datum in test_data.iter() {
+            let lexer_input = datum.0;
+            let l = Lexer::new(String::from(lexer_input));
+            let mut p = Parser::new(l);
+
+            match p.parse_program() {
+                Ok(program) => {
+                    // TODO: check errors
+                    if program.statements.len() != 1 {
+                        panic!("Program statements should have been one, found: {}", program.statements.len());
+                    }
+                    match &program.statements[0] {
+                        StatementType::Expression(expr_stmt) => {
+                        },
+                        _ => panic!("Statement is not an expression statement"),
+                    }
+                },
+                Err(err) => panic!("Parser error: {}", err),
+            }
+        }
+    }
+    */
+
 
     // #[test]
     // fn test_parse_program() {
