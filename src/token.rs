@@ -26,7 +26,6 @@ pub enum TokenType {
     Underscore,
     LeftAngleBracket,
     RightAngleBracket,
-    Dash,
     Backtick,
     LeftBracket,
     RightBracket,

@@ -110,7 +110,7 @@ impl Lexer {
                     '_' => Lexer::new_token(TokenType::Underscore, ch),
                     '<' => Lexer::new_token(TokenType::LeftAngleBracket, ch),
                     '>' => Lexer::new_token(TokenType::RightAngleBracket, ch),
-                    '-' => Lexer::new_token(TokenType::Dash, ch),
+                    '-' => Lexer::new_token(TokenType::Minus, ch),
                     '`' => Lexer::new_token(TokenType::Backtick, ch),
                     '[' => Lexer::new_token(TokenType::LeftBracket, ch),
                     ']' => Lexer::new_token(TokenType::RightBracket, ch),

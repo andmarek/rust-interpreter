@@ -11,6 +11,7 @@ pub enum ExpressionType {
     Identifier(Identifier),
     StringLiteral(StringLiteral),
     IntegerLiteral(IntegerLiteral),
+    PrefixExpression(PrefixExpression),
 }
 impl ExpressionType {
     pub fn string(&self) -> String {
@@ -18,6 +19,7 @@ impl ExpressionType {
             ExpressionType::Identifier(id) => id.token.literal.clone(),
             ExpressionType::StringLiteral(sl) => sl.token_literal(),
             ExpressionType::IntegerLiteral(il) => il.token_literal(),
+            ExpressionType::PrefixExpression(pe) => pe.token_literal(),
         }
     }
 }
@@ -224,17 +226,45 @@ impl Node for Identifier {
 }
 
 #[derive(Debug)]
+pub struct PrefixExpression {
+    pub token: Token,
+    pub operator: String,
+    pub right: Box<ExpressionType>,
+}
+
+impl PrefixExpression {
+    pub fn new(token: Token, operator: String, right: Box<ExpressionType>) -> PrefixExpression {
+        PrefixExpression {
+            token,
+            operator,
+            right,
+        }
+    }
+}
+
+impl Node for PrefixExpression {
+    fn token_literal(&self) -> String {
+        self.token.clone().literal
+    }
+    fn string(&self) -> String {
+        let mut str_rep = "".to_owned();
+        str_rep.push_str("(");
+        str_rep.push_str(self.operator.as_ref());
+        str_rep.push_str(&self.right.string());
+        str_rep.push_str(")");
+        str_rep
+    }
+}
+
+#[derive(Debug)]
 pub struct IntegerLiteral {
     pub token: Token,
     pub value: i32,
 }
 
 impl IntegerLiteral {
-    pub fn new(token: Token, value: i32) -> IntegerLiteral{
-        IntegerLiteral {
-            token,
-            value
-        }
+    pub fn new(token: Token, value: i32) -> IntegerLiteral {
+        IntegerLiteral { token, value }
     }
 }
 
@@ -252,7 +282,7 @@ pub enum StatementType {
     Let(LetStatement),
     Return(ReturnStatement),
     Expression(ExpressionStatement),
-    Integer(IntegerLiteral)
+    Integer(IntegerLiteral),
 }
 
 impl StatementType {
