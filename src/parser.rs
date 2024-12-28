@@ -1,6 +1,7 @@
 // TODO: implement check errors, we should get in the habit of doing that
 use crate::ast::{
-    Expression, ExpressionStatement, ExpressionType, Identifier, IntegerLiteral, LetStatement, Node, PrefixExpression, Program, ReturnStatement, StatementType, StringLiteral
+    Expression, ExpressionStatement, ExpressionType, Identifier, IntegerLiteral, LetStatement,
+    Node, PrefixExpression, Program, ReturnStatement, StatementType, StringLiteral,
 };
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
@@ -114,7 +115,6 @@ impl Parser {
         Ok(program)
     }
 
-
     pub fn parse_expression(&mut self, precedence: Precedence) -> Result<ExpressionType, String> {
         let token_type = match &self.cur_token {
             Some(token) => &token.token_type,
@@ -137,19 +137,26 @@ impl Parser {
     pub fn parse_prefix_expression(&mut self) -> ExpressionType {
         let token = match self.cur_token.as_ref() {
             Some(tok) => tok.clone(),
-            None => panic!("Ahhhh")
+            None => panic!("Ahhhh"),
         };
         let operator = token.literal.clone();
         self.next_token();
         let right = match self.parse_expression(Precedence::Prefix) {
             Ok(result) => Box::new(result),
-            Err(err) => panic!("Could not parse the right expression of the prefix expression: {:?}", err),
+            Err(err) => panic!(
+                "Could not parse the right expression of the prefix expression: {:?}",
+                err
+            ),
         };
         ExpressionType::PrefixExpression(PrefixExpression {
             token,
             operator,
-            right
+            right,
         })
+    }
+
+    pub fn parse_infix_expression(&mut self) -> ExpressionType {
+        unimplemented!()
     }
 
     pub fn parse_statement(&mut self) -> Result<Option<StatementType>, String> {
@@ -196,13 +203,13 @@ impl Parser {
     pub fn parse_integer_literal(&mut self) -> ExpressionType {
         let cur_token = match self.cur_token.as_ref() {
             Some(tok) => tok,
-            None => panic!("Ahhhh")
+            None => panic!("Ahhhh"),
         };
         let integer_value = cur_token.literal.parse::<i32>().unwrap();
 
-        ExpressionType::IntegerLiteral(IntegerLiteral{
+        ExpressionType::IntegerLiteral(IntegerLiteral {
             token: self.cur_token.clone().unwrap(),
-            value: integer_value
+            value: integer_value,
         })
     }
     /*
@@ -494,24 +501,27 @@ mod tests {
         let mut p = Parser::new(l);
 
         match p.parse_program() {
-            Ok(program)=> {
+            Ok(program) => {
                 if program.statements.len() != 1 {
-                    panic!("program has not enough statements, got {:?}", program.statements.len())
+                    panic!(
+                        "program has not enough statements, got {:?}",
+                        program.statements.len()
+                    )
                 }
                 match &program.statements[0] {
                     StatementType::Expression(expr_stmt) => {
                         if let Some(ExpressionType::IntegerLiteral(int_literal)) =
-                        &expr_stmt.expression {
+                            &expr_stmt.expression
+                        {
                             assert_eq!(int_literal.value, 5);
                             assert_eq!(int_literal.token.literal, "5");
+                        } else {
+                            panic!("Expression is not an integer literal");
                         }
-                    else {
-                        panic!("Expression is not an integer literal");
                     }
-                },
-                _ => panic!("Statement is not an expression statement"),
+                    _ => panic!("Statement is not an expression statement"),
                 }
-            },
+            }
             Err(err) => panic!("Parser error: {}", err),
         }
     }
@@ -527,29 +537,25 @@ mod tests {
 
     ///
     fn extract_prefix_expression(program: &Program) -> &PrefixExpression {
-        assert_eq!(program.statements.len(), 1, "Program should have exactly one statement");
+        assert_eq!(
+            program.statements.len(),
+            1,
+            "Program should have exactly one statement"
+        );
         match &program.statements[0] {
-            StatementType::Expression(expr_stmt) => {
-                match &expr_stmt.expression {
-                    Some(ExpressionType::PrefixExpression(prefix_expr)) =>
-                    prefix_expr,
-                    _ => panic!("Expression is not a prefix expression")
-                }
+            StatementType::Expression(expr_stmt) => match &expr_stmt.expression {
+                Some(ExpressionType::PrefixExpression(prefix_expr)) => prefix_expr,
+                _ => panic!("Expression is not a prefix expression"),
             },
-            _ => panic!("Statement is not an expression statement")
+            _ => panic!("Statement is not an expression statement"),
         }
-
     }
-
 
     #[test]
     pub fn test_parsing_prefix_expression() {
         //let tup: (&str, &str, i32) =  ("!5;", "!", 5);
         //let tup: (&str, &str, i32) =  ("!5;", "!", 5);
-        let test_data = [
-            ("!5;", "!", 5),
-            ("-15;", "-", 15)
-        ];
+        let test_data = [("!5;", "!", 5), ("-15;", "-", 15)];
         for (input, operator, expected_value) in test_data.iter() {
             let program = parse_test_program(input);
             let prefix_expr = extract_prefix_expression(&program);
@@ -559,9 +565,27 @@ mod tests {
             match &*prefix_expr.right {
                 ExpressionType::IntegerLiteral(int) => {
                     assert_eq!(int.value, *expected_value)
-                },
-                other => panic!("Expected integer ligeral, got {:?}", other)
+                }
+                other => panic!("Expected integer ligeral, got {:?}", other),
             }
+        }
+    }
+
+    #[test]
+    pub fn test_parse_infix_expression() {
+        let test_programs = [
+            ("5 + 5;", 5, "+", 5),
+            ("5 - 5;", 5, "-", 5),
+            ("5 * 5;", 5, "*", 5),
+            ("5 / 5;", 5, "/", 5),
+            ("5 > 5;", 5, ">", 5),
+            ("5 < 5;", 5, "<", 5),
+            ("5 == 5;", 5, "==", 5),
+            ("5 != 5", 5, "!=", 5),
+        ];
+        for (test_program, left_operand, operator, right_operand) in test_programs.iter() {
+            let mut p = parse_test_program(test_program);
+            assert_eq!(p.statements.len(), 1);
         }
     }
 

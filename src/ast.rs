@@ -12,6 +12,7 @@ pub enum ExpressionType {
     StringLiteral(StringLiteral),
     IntegerLiteral(IntegerLiteral),
     PrefixExpression(PrefixExpression),
+    InfixExpression(InfixExpression),
 }
 impl ExpressionType {
     pub fn string(&self) -> String {
@@ -20,6 +21,7 @@ impl ExpressionType {
             ExpressionType::StringLiteral(sl) => sl.token_literal(),
             ExpressionType::IntegerLiteral(il) => il.token_literal(),
             ExpressionType::PrefixExpression(pe) => pe.token_literal(),
+            ExpressionType::InfixExpression(pe) => ie.token_literal(),
         }
     }
 }
@@ -249,6 +251,45 @@ impl Node for PrefixExpression {
     fn string(&self) -> String {
         let mut str_rep = "".to_owned();
         str_rep.push_str("(");
+        str_rep.push_str(self.operator.as_ref());
+        str_rep.push_str(&self.right.string());
+        str_rep.push_str(")");
+        str_rep
+    }
+}
+
+#[derive(Debug)]
+pub struct InfixExpression {
+    pub token: Token,
+    pub operator: String,
+    pub left: Box<ExpressionType>,
+    pub right: Box<ExpressionType>,
+}
+
+impl InfixExpression {
+    pub fn new(
+        token: Token,
+        operator: String,
+        right: Box<ExpressionType>,
+        left: Box<ExpressionType>,
+    ) -> InfixExpression {
+        InfixExpression {
+            token,
+            operator,
+            right,
+            left,
+        }
+    }
+}
+
+impl Node for InfixExpression {
+    fn token_literal(&self) -> String {
+        self.token.clone().literal
+    }
+    fn string(&self) -> String {
+        let mut str_rep = "".to_owned();
+        str_rep.push_str("(");
+        str_rep.push_str(&self.left.string());
         str_rep.push_str(self.operator.as_ref());
         str_rep.push_str(&self.right.string());
         str_rep.push_str(")");
