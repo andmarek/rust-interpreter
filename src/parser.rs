@@ -1,7 +1,7 @@
 // TODO: implement check errors, we should get in the habit of doing that
 use crate::ast::{
-    Expression, ExpressionStatement, ExpressionType, Identifier, IntegerLiteral, LetStatement,
-    Node, PrefixExpression, Program, ReturnStatement, StatementType, StringLiteral,
+    Expression, ExpressionStatement, ExpressionType, Identifier, InfixExpression, IntegerLiteral,
+    LetStatement, Node, PrefixExpression, Program, ReturnStatement, StatementType, StringLiteral,
 };
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
@@ -28,13 +28,14 @@ pub struct Parser {
 pub enum Precedence {
     Lowest = 0,
     Equals = 1,      // ==
-    LessGreater = 2, // > or
+    LessGreater = 2, // > or <
     Sum = 3,         // +
     Product = 4,     // *
     Prefix = 5,      // -X or !X
     Call = 6,        // myFunction(X)
     Index = 7,       // array[index]
 }
+
 
 impl Parser {
     pub fn new(lexer: Lexer) -> Self {
@@ -115,6 +116,7 @@ impl Parser {
         Ok(program)
     }
 
+
     pub fn parse_expression(&mut self, precedence: Precedence) -> Result<ExpressionType, String> {
         let token_type = match &self.cur_token {
             Some(token) => &token.token_type,
@@ -154,9 +156,55 @@ impl Parser {
             right,
         })
     }
+    pub fn precedences(t: TokenType) -> Result<Precedence, String> {
+        Ok(match t {
+            TokenType::Equals => Precedence::Equals,
+            TokenType::NotEqual => Precedence::Equals,
+            TokenType::LessThan => Precedence::LessGreater,
+            TokenType::GreaterThan => Precedence::LessGreater,
+            TokenType::Plus => Precedence::Sum,
+            TokenType::Minus => Precedence::Sum,
+            TokenType::Slash => Precedence::Product,
+            TokenType::Asterisk => Precedence::Product,
+            TokenType::LeftParens => Precedence::Call,
+            TokenType::LeftBracket => Precedence::Index,
+            _ => Precedence::Lowest,
+        })
+    }
+
+    pub fn cur_precedence(&mut self) -> Precedence {
+        let token = match self.cur_token.as_ref() {
+            Some(tok) => tok.clone(),
+            None => return Precedence::Lowest,
+        };
+
+        Self::precedence(token.token_type)
+            .unwrap_or(Precedence::Lowest)
+    }
 
     pub fn parse_infix_expression(&mut self) -> ExpressionType {
-        unimplemented!()
+        let operator = self.cur_token;
+        let token = match self.cur_token.as_ref() {
+            Some(tok) => tok.clone(),
+            None => panic!("Ahhhh"),
+        };
+
+        let right = match self.parse_expression()
+        InfixExpression {
+            token,
+            operator: string::from("+"),
+            right:
+            left:
+        }
+        /*
+        InfixExpression{
+            token,
+            operator: String::from("+"),
+            right: ExpressionType::IntegerLiteral(IntegerLiteral::new(Token::new(TokenType::Int, "5")),
+            left: ExpressionType::IntegerLiteral(
+            IntegerLiteral{token: Token::new(TokenType::Int), value: String::from("5")}
+        }
+        */
     }
 
     pub fn parse_statement(&mut self) -> Result<Option<StatementType>, String> {

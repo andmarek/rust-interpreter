@@ -21,7 +21,7 @@ impl ExpressionType {
             ExpressionType::StringLiteral(sl) => sl.token_literal(),
             ExpressionType::IntegerLiteral(il) => il.token_literal(),
             ExpressionType::PrefixExpression(pe) => pe.token_literal(),
-            ExpressionType::InfixExpression(pe) => ie.token_literal(),
+            ExpressionType::InfixExpression(ie) => ie.token_literal(),
         }
     }
 }

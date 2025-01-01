@@ -108,19 +108,19 @@ impl Lexer {
                     '#' => Lexer::new_token(TokenType::PoundSign, ch),
                     '*' => Lexer::new_token(TokenType::Asterisk, ch),
                     '_' => Lexer::new_token(TokenType::Underscore, ch),
-                    '<' => Lexer::new_token(TokenType::LeftAngleBracket, ch),
-                    '>' => Lexer::new_token(TokenType::RightAngleBracket, ch),
+                    '<' => Lexer::new_token(TokenType::LessThan, ch),
+                    '>' => Lexer::new_token(TokenType::GreaterThan, ch),
                     '-' => Lexer::new_token(TokenType::Minus, ch),
                     '`' => Lexer::new_token(TokenType::Backtick, ch),
                     '[' => Lexer::new_token(TokenType::LeftBracket, ch),
                     ']' => Lexer::new_token(TokenType::RightBracket, ch),
                     '(' => Lexer::new_token(TokenType::LeftParens, ch),
                     ')' => Lexer::new_token(TokenType::RightParens, ch),
-                    '+' => Lexer::new_token(TokenType::PlusSign, ch),
+                    '+' => Lexer::new_token(TokenType::Plus, ch),
                     '.' => Lexer::new_token(TokenType::Dot, ch),
                     '|' => Lexer::new_token(TokenType::Pipe, ch),
                     '\\' => Lexer::new_token(TokenType::Backslash, ch),
-                    '/' => Lexer::new_token(TokenType::ForwarSlash, ch),
+                    '/' => Lexer::new_token(TokenType::Slash, ch),
                     ';' => Lexer::new_token(TokenType::Semicolon, ch),
                     ',' => Lexer::new_token(TokenType::Comma, ch),
                     '{' => Lexer::new_token(TokenType::LeftBrace, ch),
@@ -128,7 +128,7 @@ impl Lexer {
                     '!' => {
                         if let Some('=') = self.peek_char() {
                             self.read_char();
-                            Token::new(TokenType::ExclaimationMarkEquals, "!=".to_string())
+                            Token::new(TokenType::NotEqual, "!=".to_string())
                         } else {
                             Lexer::new_token(TokenType::Bang, ch)
                         }

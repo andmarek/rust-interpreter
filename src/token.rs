@@ -17,15 +17,15 @@ pub enum TokenType {
     BooleanFalse,
     // Operators
     DoubleEqual,
-    ExclaimationMarkEquals,
-    ForwarSlash,
-    PlusSign,
+    NotEqual,
+    Slash,
+    Plus,
     Asterisk,
     Minus,
     // Symbols
     Underscore,
-    LeftAngleBracket,
-    RightAngleBracket,
+    LessThan,
+    GreaterThan,
     Backtick,
     LeftBracket,
     RightBracket,
@@ -41,7 +41,6 @@ pub enum TokenType {
     Comma,
     LeftBrace,
     RightBrace,
-
     // Special
     Eof,
     Illegal,
