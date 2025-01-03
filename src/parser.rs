@@ -13,6 +13,19 @@ struct ParsingFunctions {
     pub infix: fn(ExpressionType) -> ExpressionType,
 }
 
+
+#[derive(Debug)]
+pub enum ParseError {
+    UnexpectedEOF,
+    InvalidExpression(String),
+}
+
+impl From<String> for ParseError{
+    fn from(error: String) -> Self {
+        ParseError::InvalidExpression(error)
+    }
+}
+
 pub struct Parser {
     lexer: Lexer,
     cur_token: Option<Token>,
@@ -35,7 +48,6 @@ pub enum Precedence {
     Call = 6,        // myFunction(X)
     Index = 7,       // array[index]
 }
-
 
 impl Parser {
     pub fn new(lexer: Lexer) -> Self {
@@ -116,7 +128,6 @@ impl Parser {
         Ok(program)
     }
 
-
     pub fn parse_expression(&mut self, precedence: Precedence) -> Result<ExpressionType, String> {
         let token_type = match &self.cur_token {
             Some(token) => &token.token_type,
@@ -156,7 +167,7 @@ impl Parser {
             right,
         })
     }
-    pub fn precedences(t: TokenType) -> Result<Precedence, String> {
+    pub fn precedences(&mut self, t: TokenType) -> Result<Precedence, String> {
         Ok(match t {
             TokenType::Equals => Precedence::Equals,
             TokenType::NotEqual => Precedence::Equals,
@@ -178,33 +189,24 @@ impl Parser {
             None => return Precedence::Lowest,
         };
 
-        Self::precedence(token.token_type)
+        self.precedences(token.token_type)
             .unwrap_or(Precedence::Lowest)
     }
 
-    pub fn parse_infix_expression(&mut self) -> ExpressionType {
-        let operator = self.cur_token;
-        let token = match self.cur_token.as_ref() {
-            Some(tok) => tok.clone(),
-            None => panic!("Ahhhh"),
-        };
+    pub fn parse_infix_expression(&mut self, left: ExpressionType) -> Result<ExpressionType, ParseError> {
+        let token = self.cur_token.as_ref().ok_or(ParseError::UnexpectedEOF)?.clone();
 
-        let right = match self.parse_expression()
-        InfixExpression {
-            token,
-            operator: string::from("+"),
-            right:
-            left:
-        }
-        /*
-        InfixExpression{
-            token,
-            operator: String::from("+"),
-            right: ExpressionType::IntegerLiteral(IntegerLiteral::new(Token::new(TokenType::Int, "5")),
-            left: ExpressionType::IntegerLiteral(
-            IntegerLiteral{token: Token::new(TokenType::Int), value: String::from("5")}
-        }
-        */
+        let cur_precedence = self.cur_precedence();
+
+        let right = Box::new(self.parse_expression(cur_precedence)?);
+
+        //let right = self.parse_expression(self.cur_precedence());
+        Ok(ExpressionType::InfixExpression(InfixExpression {
+            token: token.clone(),
+            operator: token.literal,
+            right,
+            left: Box::new(left),
+        }))
     }
 
     pub fn parse_statement(&mut self) -> Result<Option<StatementType>, String> {
