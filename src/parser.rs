@@ -1,4 +1,5 @@
 // TODO: implement check errors, we should get in the habit of doing that
+use std::fmt;
 use crate::ast::{
     Expression, ExpressionStatement, ExpressionType, Identifier, InfixExpression, IntegerLiteral,
     LetStatement, Node, PrefixExpression, Program, ReturnStatement, StatementType, StringLiteral,
@@ -13,14 +14,23 @@ struct ParsingFunctions {
     pub infix: fn(ExpressionType) -> ExpressionType,
 }
 
-
 #[derive(Debug)]
 pub enum ParseError {
     UnexpectedEOF,
     InvalidExpression(String),
 }
 
-impl From<String> for ParseError{
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ParseError::UnexpectedEOF => write!(f, "Unexpected end of file"),
+            ParseError::InvalidExpression(msg) => write!(f, "Invalid expression: {}", msg),
+        }
+    }
+}
+
+
+impl From<String> for ParseError {
     fn from(error: String) -> Self {
         ParseError::InvalidExpression(error)
     }
@@ -34,10 +44,11 @@ pub struct Parser {
     // Each token we encounter can one of two types of functions associated with parsing it,
     // depending on whether the token is found in the infix or prefix position
     prefix_parse_fns: HashMap<TokenType, fn(&mut Parser) -> ExpressionType>,
-    infix_parse_fns: HashMap<TokenType, fn(&mut Parser, ExpressionType) -> ExpressionType>,
+    infix_parse_fns:
+        HashMap<TokenType, fn(&mut Parser, ExpressionType) -> Result<ExpressionType, ParseError>>,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, PartialOrd)]
 pub enum Precedence {
     Lowest = 0,
     Equals = 1,      // ==
@@ -66,6 +77,15 @@ impl Parser {
         parser.register_prefix(TokenType::Int, Self::parse_integer_literal);
         parser.register_prefix(TokenType::Bang, Self::parse_prefix_expression);
         parser.register_prefix(TokenType::Minus, Self::parse_prefix_expression);
+
+        parser.register_infix(TokenType::Plus, Self::parse_infix_expression);
+        parser.register_infix(TokenType::Minus, Self::parse_infix_expression);
+        parser.register_infix(TokenType::Asterisk, Self::parse_infix_expression);
+        parser.register_infix(TokenType::Slash, Self::parse_infix_expression);
+        parser.register_infix(TokenType::GreaterThan, Self::parse_infix_expression);
+        parser.register_infix(TokenType::LessThan, Self::parse_infix_expression);
+        parser.register_infix(TokenType::DoubleEqual, Self::parse_infix_expression);
+        parser.register_infix(TokenType::NotEqual, Self::parse_infix_expression);
 
         parser.next_token();
         parser.next_token();
@@ -96,14 +116,14 @@ impl Parser {
     pub fn register_infix(
         &mut self,
         token_type: TokenType,
-        f: fn(&mut Parser, ExpressionType) -> ExpressionType,
+        f: fn(&mut Parser, ExpressionType) -> Result<ExpressionType, ParseError>,
     ) {
         self.infix_parse_fns.insert(token_type, f);
     }
 
     /// Main function that gets called to parse the entire program.
     /// A program consists of a list of statements that are parsed one at a time.
-    pub fn parse_program(&mut self) -> Result<Program, String> {
+    pub fn parse_program(&mut self) -> Result<Program, ParseError> {
         let mut program = Program::new();
 
         println!("Beginning to parse the program");
@@ -128,23 +148,43 @@ impl Parser {
         Ok(program)
     }
 
-    pub fn parse_expression(&mut self, precedence: Precedence) -> Result<ExpressionType, String> {
-        let token_type = match &self.cur_token {
-            Some(token) => &token.token_type,
-            None => return Err("No current token".to_string()),
-        };
+    pub fn parse_expression(
+        &mut self,
+        precedence: Precedence,
+    ) -> Result<ExpressionType, ParseError> {
+        let token_type = self
+            .cur_token
+            .as_ref()
+            .ok_or(ParseError::InvalidExpression(String::from("Ahhh")))?
+            .token_type;
 
-        let prefix = self.prefix_parse_fns.get(token_type);
+        let prefix_fn = *self
+            .prefix_parse_fns
+            .get(&token_type)
+            .ok_or_else(|| format!("No prefix parse function for {:?}", token_type))?;
 
-        Ok(match prefix {
-            Some(prefix_fn) => prefix_fn(self),
-            None => {
-                return Err(format!(
-                    "No prefix parsing function for token type {:?}",
-                    token_type
-                ))
-            }
-        })
+        let mut left_exp = prefix_fn(self);
+
+        while !self.peek_token_is(TokenType::Semicolon) && precedence < self.peek_precedence()? {
+            let peek_token_type = self.peek_token.as_ref().ok_or(ParseError::InvalidExpression(String::from("Ahhhh")))?.token_type;
+
+            // Clone the function pointer outside the match
+            let infix_fn = match self.infix_parse_fns.get(&peek_token_type).copied() {
+                Some(f) => f,
+                None => break,
+            };
+
+            // Now we can mutably borrow self
+            self.next_token();
+            left_exp = infix_fn(self, left_exp)?;
+        }
+
+        Ok(left_exp)
+    }
+
+    pub fn peek_precedence(&mut self) -> Result<Precedence, String> {
+        let tt = self.peek_token.clone().ok_or("err")?.token_type;
+        self.precedences(tt)
     }
 
     pub fn parse_prefix_expression(&mut self) -> ExpressionType {
@@ -193,23 +233,29 @@ impl Parser {
             .unwrap_or(Precedence::Lowest)
     }
 
-    pub fn parse_infix_expression(&mut self, left: ExpressionType) -> Result<ExpressionType, ParseError> {
-        let token = self.cur_token.as_ref().ok_or(ParseError::UnexpectedEOF)?.clone();
-
+    pub fn parse_infix_expression(
+        &mut self,
+        left: ExpressionType,
+    ) -> Result<ExpressionType, ParseError> {
+        // Change return type to use ParseError
+        let token = self
+            .cur_token
+            .as_ref()
+            .ok_or(ParseError::UnexpectedEOF)?
+            .clone();
+        let operator = token.literal.clone();
         let cur_precedence = self.cur_precedence();
-
+        self.next_token();
         let right = Box::new(self.parse_expression(cur_precedence)?);
-
-        //let right = self.parse_expression(self.cur_precedence());
         Ok(ExpressionType::InfixExpression(InfixExpression {
-            token: token.clone(),
-            operator: token.literal,
-            right,
+            token,
+            operator,
             left: Box::new(left),
+            right,
         }))
     }
 
-    pub fn parse_statement(&mut self) -> Result<Option<StatementType>, String> {
+    pub fn parse_statement(&mut self) -> Result<Option<StatementType>, ParseError> {
         println!("Parsing statement");
         match &self.cur_token {
             Some(token) => {
@@ -225,29 +271,29 @@ impl Parser {
         }
     }
 
-    pub fn parse_expression_statement(&mut self) -> Result<ExpressionStatement, String> {
+    pub fn parse_expression_statement(&mut self) -> Result<ExpressionStatement, ParseError> {
         println!("EXPRESSION statement, cur_token: {:?}", self.cur_token);
 
+        // Get the token, return ParseError if None
+        let token = self.cur_token.clone()
+            .ok_or(ParseError::InvalidExpression("No token available".to_string()))?;
+
+        // Create the statement with the token
         let mut statement = ExpressionStatement {
-            token: self.cur_token.clone().ok_or("No current token")?,
+            token,
             expression: None,
         };
 
-        statement.expression = match self.parse_expression(Precedence::Lowest) {
-            Ok(expr) => Some(expr),
-            Err(err) => return Err(err),
-        };
+        // Parse the expression and set it in the statement
+        statement.expression = Some(self.parse_expression(Precedence::Lowest)?);
 
+        // Skip any semicolons
         while self.peek_token_is(TokenType::Semicolon) {
             self.next_token();
         }
 
-        println!(
-            "Here is the current token at the end of this!: {:?}",
-            self.cur_token
-        );
-
-        return Ok(statement);
+        println!("Here is the current token at the end of this!: {:?}", self.cur_token);
+        Ok(statement)
     }
 
     pub fn parse_integer_literal(&mut self) -> ExpressionType {
@@ -633,8 +679,10 @@ mod tests {
             ("5 == 5;", 5, "==", 5),
             ("5 != 5", 5, "!=", 5),
         ];
+
         for (test_program, left_operand, operator, right_operand) in test_programs.iter() {
             let mut p = parse_test_program(test_program);
+
             assert_eq!(p.statements.len(), 1);
         }
     }
