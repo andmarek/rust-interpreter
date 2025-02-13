@@ -11,6 +11,7 @@ use log::debug;
 
 struct ParsingFunctions {
     pub prefix: fn() -> ExpressionType,
+
     pub infix: fn(ExpressionType) -> ExpressionType,
 }
 
@@ -148,32 +149,28 @@ impl Parser {
         Ok(program)
     }
 
-    pub fn parse_expression(
-        &mut self,
-        precedence: Precedence,
-    ) -> Result<ExpressionType, ParseError> {
+    pub fn parse_expression(&mut self, precedence: Precedence) -> Result<ExpressionType, ParseError> {
         let token_type = self
             .cur_token
             .as_ref()
-            .ok_or(ParseError::InvalidExpression(String::from("Ahhh")))?
+            .ok_or(ParseError::InvalidExpression(String::from("No current token")))?
             .token_type;
 
         let prefix_fn = match self.prefix_parse_fns.get(&token_type) {
             Some(func) => *func,
             None => {
                 debug!("No prefix function found for token type {:?}", token_type);
-                return Ok(None)
+                return Err(ParseError::InvalidExpression(format!(
+                    "No prefix parse function found for {:?}",
+                    token_type
+                )));
             }
         };
-        if prefix_fn.is_none() {
-            debug!("No prefix function found for token type {:?}", token_type);
-            return Ok(None);
-        }
-
+        
         let mut left_exp = prefix_fn(self);
 
         while !self.peek_token_is(TokenType::Semicolon) && precedence < self.peek_precedence()? {
-            let peek_token_type = self.peek_token.as_ref().ok_or(ParseError::InvalidExpression(String::from("Ahhhh")))?.token_type;
+            let peek_token_type = self.peek_token.as_ref().ok_or(ParseError::InvalidExpression(String::from("No peek token")))?.token_type;
 
             // Clone the function pointer outside the match
             let infix_fn = match self.infix_parse_fns.get(&peek_token_type).copied() {
@@ -197,27 +194,41 @@ impl Parser {
     pub fn parse_prefix_expression(&mut self) -> ExpressionType {
         let token = match self.cur_token.as_ref() {
             Some(tok) => tok.clone(),
-            None => panic!("Ahhhh"),
+            None => panic!("No current token in parse_prefix_expression"),
         };
+        
+        debug!("Parsing prefix expression with token: {:?}", token);
         let operator = token.literal.clone();
+        debug!("Operator extracted: {}", operator);
+        
         self.next_token();
+        
+        debug!("After moving to next token, current token is: {:?}", self.cur_token);
         let right = match self.parse_expression(Precedence::Prefix) {
-            Ok(result) => Box::new(result),
-            Err(err) => panic!(
-                "Could not parse the right expression of the prefix expression: {:?}",
-                err
-            ),
+            Ok(result) => {
+                debug!("Successfully parsed right expression: {:?}", result);
+                Box::new(result)
+            },
+            Err(err) => {
+                debug!("Failed to parse right expression: {:?}", err);
+                panic!("Could not parse right expression: {:?}", err)
+            },
         };
-        ExpressionType::PrefixExpression(PrefixExpression {
+        
+        let prefix_expr = ExpressionType::PrefixExpression(PrefixExpression {
             token,
             operator,
             right,
-        })
+        });
+        debug!("Created prefix expression: {:?}", prefix_expr);
+        prefix_expr
     }
+
     pub fn precedences(&mut self, t: TokenType) -> Result<Precedence, String> {
         Ok(match t {
             TokenType::Equals => Precedence::Equals,
             TokenType::NotEqual => Precedence::Equals,
+            TokenType::DoubleEqual => Precedence::Equals,
             TokenType::LessThan => Precedence::LessGreater,
             TokenType::GreaterThan => Precedence::LessGreater,
             TokenType::Plus => Precedence::Sum,
@@ -244,7 +255,6 @@ impl Parser {
         &mut self,
         left: ExpressionType,
     ) -> Result<ExpressionType, ParseError> {
-        // Change return type to use ParseError
         let token = self
             .cur_token
             .as_ref()
@@ -656,20 +666,32 @@ mod tests {
 
     #[test]
     pub fn test_parsing_prefix_expression() {
-        //let tup: (&str, &str, i32) =  ("!5;", "!", 5);
-        //let tup: (&str, &str, i32) =  ("!5;", "!", 5);
         let test_data = [("!5;", "!", 5), ("-15;", "-", 15)];
         for (input, operator, expected_value) in test_data.iter() {
+            debug!("Testing prefix expression with input: {}", input);
             let program = parse_test_program(input);
             let prefix_expr = extract_prefix_expression(&program);
 
-            assert_eq!(prefix_expr.operator, *operator);
+            assert_eq!(
+                prefix_expr.operator, 
+                *operator,
+                "Operator mismatch for input '{}'. Expected: '{}', got: '{}'",
+                input, operator, prefix_expr.operator
+            );
 
             match &*prefix_expr.right {
                 ExpressionType::IntegerLiteral(int) => {
-                    assert_eq!(int.value, *expected_value)
+                    assert_eq!(
+                        int.value, 
+                        *expected_value,
+                        "Value mismatch for input '{}'. Expected: {}, got: {}",
+                        input, expected_value, int.value
+                    );
                 }
-                other => panic!("Expected integer ligeral, got {:?}", other),
+                other => panic!(
+                    "Expected integer literal for input '{}', got {:?}",
+                    input, other
+                ),
             }
         }
     }
@@ -687,10 +709,63 @@ mod tests {
             //("5 != 5", 5, "!=", 5),
         ];
 
-        for (test_program, left_operand, operator, right_operand) in test_programs.iter() {
-            let mut p = parse_test_program(test_program);
+        for (input, left_value, operator, right_value) in test_programs.iter() {
+            debug!("Testing infix expression with input: {}", input);
+            let program = parse_test_program(input);
+            
+            assert_eq!(
+                program.statements.len(), 
+                1,
+                "program should have exactly one statement. got={}",
+                program.statements.len()
+            );
 
-            assert_eq!(p.statements.len(), 1);
+            match &program.statements[0] {
+                StatementType::Expression(expr_stmt) => {
+                    match &expr_stmt.expression {
+                        Some(ExpressionType::InfixExpression(infix)) => {
+                            // Check operator
+                            assert_eq!(
+                                infix.operator, 
+                                *operator,
+                                "operator is not '{}'. got={}",
+                                operator, 
+                                infix.operator
+                            );
+
+                            // Check left value
+                            match &*infix.left {
+                                ExpressionType::IntegerLiteral(left_int) => {
+                                    assert_eq!(
+                                        left_int.value, 
+                                        *left_value,
+                                        "left value not {}. got={}",
+                                        left_value, 
+                                        left_int.value
+                                    );
+                                },
+                                other => panic!("left expression not IntegerLiteral. got={:?}", other),
+                            }
+
+                            // Check right value
+                            match &*infix.right {
+                                ExpressionType::IntegerLiteral(right_int) => {
+                                    assert_eq!(
+                                        right_int.value, 
+                                        *right_value,
+                                        "right value not {}. got={}",
+                                        right_value, 
+                                        right_int.value
+                                    );
+                                },
+                                other => panic!("right expression not IntegerLiteral. got={:?}", other),
+                            }
+                        },
+                        other => panic!("expression is not InfixExpression. got={:?}", other),
+                    }
+                },
+                other => panic!("statement is not ExpressionStatement. got={:?}", other),
+            }
         }
     }
 
