@@ -129,15 +129,10 @@ impl Parser {
     /// A program consists of a list of statements that are parsed one at a time.
     pub fn parse_program(&mut self) -> Result<Program, ParseError> {
         let mut program = Program::new();
-
         debug!("Beginning to parse the program");
 
-        // Single while loop
         while let Some(token) = &self.cur_token {
-            debug!(
-                "----------Parsing the program, the current token is {:?}",
-                token
-            );
+            debug!("Parsing the program, the current token is {:?}", token);
 
             match self.parse_statement()? {
                 Some(statement) => program.statements.push(statement),
@@ -221,7 +216,7 @@ impl Parser {
             "After moving to next token, current token is: {:?}",
             self.cur_token
         );
-        let right = match self.parse_expression(Precedence::Lowest) {
+        let right = match self.parse_expression(Precedence::Prefix) {
             Ok(result) => {
                 debug!("Successfully parsed right expression: {:?}", result);
                 Box::new(result)
@@ -456,9 +451,25 @@ impl Parser {
     }
 }
 
+impl InfixExpression {
+    pub fn string(&self) -> String {
+        format!("({} {} {})", self.left.string(), self.operator, self.right.string())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use once_cell::sync::Lazy;
+    use std::sync::Once;
+
+    static INIT: Lazy<()> = Lazy::new(|| {
+        let _ = env_logger::builder().is_test(true).try_init();
+    });
+
+    fn init_logger() {
+        Lazy::force(&INIT);
+    }
     #[test]
     fn test_parse_single_let_statement() {
         let input = String::from("let x = 5;");
@@ -845,6 +856,22 @@ mod tests {
                     }
                 }
                 other => panic!("statement is not ExpressionStatement. got={:?}", other),
+            }
+        }
+    }
+
+    // on page 82
+    #[test]
+    pub fn test_operator_precedence_parsing() {
+        init_logger();
+
+        let operator_tests = [("-a * b", "((-a) * b)")];
+        for (input, expected) in operator_tests.iter() {
+            let program = parse_test_program(input);
+            let program_str = program.string();
+
+            if &program_str != expected {
+                panic!("Expected {}, got {}", expected, program.string())
             }
         }
     }

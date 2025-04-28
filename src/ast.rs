@@ -18,15 +18,16 @@ pub enum ExpressionType {
 impl ExpressionType {
     pub fn string(&self) -> String {
         match self {
-            ExpressionType::Identifier(id) => id.token.literal.clone(),
-            ExpressionType::StringLiteral(sl) => sl.token_literal(),
-            ExpressionType::IntegerLiteral(il) => il.token_literal(),
-            ExpressionType::PrefixExpression(pe) => pe.token_literal(),
-            ExpressionType::InfixExpression(ie) => ie.token_literal(),
-            ExpressionType::BooleanLiteral(bl) => bl.token_literal(),
+            ExpressionType::Identifier(id) => id.string(),
+            ExpressionType::StringLiteral(sl) => sl.string(),
+            ExpressionType::IntegerLiteral(il) => il.string(),
+            ExpressionType::PrefixExpression(pe) => pe.string(),
+            ExpressionType::InfixExpression(ie) => ie.string(),
+            ExpressionType::BooleanLiteral(bl) => bl.string(),
         }
     }
 }
+
 pub trait Statement: Node {
     fn statement_node(&self);
 }
@@ -282,21 +283,18 @@ impl InfixExpression {
             left,
         }
     }
+
 }
+
 
 impl Node for InfixExpression {
     fn token_literal(&self) -> String {
         self.token.clone().literal
     }
     fn string(&self) -> String {
-        let mut str_rep = "".to_owned();
-        str_rep.push_str("(");
-        str_rep.push_str(&self.left.string());
-        str_rep.push_str(self.operator.as_ref());
-        str_rep.push_str(&self.right.string());
-        str_rep.push_str(")");
-        str_rep
+        format!("({} {} {})", self.left.string(), self.operator, self.right.string())
     }
+    
 }
 
 #[derive(Debug)]
