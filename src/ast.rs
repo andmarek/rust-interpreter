@@ -11,6 +11,7 @@ pub enum ExpressionType {
     Identifier(Identifier),
     StringLiteral(StringLiteral),
     IntegerLiteral(IntegerLiteral),
+    BooleanLiteral(BooleanLiteral),
     PrefixExpression(PrefixExpression),
     InfixExpression(InfixExpression),
 }
@@ -22,6 +23,7 @@ impl ExpressionType {
             ExpressionType::IntegerLiteral(il) => il.token_literal(),
             ExpressionType::PrefixExpression(pe) => pe.token_literal(),
             ExpressionType::InfixExpression(ie) => ie.token_literal(),
+            ExpressionType::BooleanLiteral(bl) => bl.token_literal(),
         }
     }
 }
@@ -294,6 +296,31 @@ impl Node for InfixExpression {
         str_rep.push_str(&self.right.string());
         str_rep.push_str(")");
         str_rep
+    }
+}
+
+#[derive(Debug)]
+pub struct BooleanLiteral {
+    pub token: Token,
+    pub value: bool,
+}
+
+impl BooleanLiteral {
+    pub fn new(token: Token, value: bool) -> BooleanLiteral {
+        BooleanLiteral { token, value }
+    }
+}
+
+impl Expression for BooleanLiteral {
+    fn expression_node(&self) {}
+}
+
+impl Node for BooleanLiteral {
+    fn token_literal(&self) -> String {
+        self.value.clone().to_string()
+    }
+    fn string(&self) -> String {
+        self.token_literal()
     }
 }
 

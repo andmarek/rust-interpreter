@@ -1,13 +1,14 @@
-use std::fmt;
 use crate::ast::{
-    Expression, ExpressionStatement, ExpressionType, Identifier, InfixExpression, IntegerLiteral,
-    LetStatement, Node, PrefixExpression, Program, ReturnStatement, StatementType, StringLiteral,
+    BooleanLiteral, Expression, ExpressionStatement, ExpressionType, Identifier, InfixExpression,
+    IntegerLiteral, LetStatement, Node, PrefixExpression, Program, ReturnStatement, StatementType,
+    StringLiteral,
 };
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
-use std::collections::HashMap;
-use std::vec;
 use log::debug;
+use std::collections::HashMap;
+use std::fmt;
+use std::vec;
 
 struct ParsingFunctions {
     pub prefix: fn() -> ExpressionType,
@@ -30,7 +31,6 @@ impl fmt::Display for ParseError {
     }
 }
 
-
 impl From<String> for ParseError {
     fn from(error: String) -> Self {
         ParseError::InvalidExpression(error)
@@ -44,6 +44,7 @@ pub struct Parser {
     errors: Vec<String>,
     // Each token we encounter can one of two types of functions associated with parsing it,
     // depending on whether the token is found in the infix or prefix position
+    // Pratt would call these nuds (null notations)
     prefix_parse_fns: HashMap<TokenType, fn(&mut Parser) -> ExpressionType>,
     infix_parse_fns:
         HashMap<TokenType, fn(&mut Parser, ExpressionType) -> Result<ExpressionType, ParseError>>,
@@ -78,6 +79,8 @@ impl Parser {
         parser.register_prefix(TokenType::Int, Self::parse_integer_literal);
         parser.register_prefix(TokenType::Bang, Self::parse_prefix_expression);
         parser.register_prefix(TokenType::Minus, Self::parse_prefix_expression);
+        parser.register_prefix(TokenType::BooleanTrue, Self::parse_boolean_expression);
+        parser.register_prefix(TokenType::BooleanFalse, Self::parse_boolean_expression);
 
         parser.register_infix(TokenType::Plus, Self::parse_infix_expression);
         parser.register_infix(TokenType::Minus, Self::parse_infix_expression);
@@ -149,13 +152,19 @@ impl Parser {
         Ok(program)
     }
 
-    pub fn parse_expression(&mut self, precedence: Precedence) -> Result<ExpressionType, ParseError> {
+    pub fn parse_expression(
+        &mut self,
+        precedence: Precedence,
+    ) -> Result<ExpressionType, ParseError> {
         let token_type = self
             .cur_token
             .as_ref()
-            .ok_or(ParseError::InvalidExpression(String::from("No current token")))?
+            .ok_or(ParseError::InvalidExpression(String::from(
+                "No current token",
+            )))?
             .token_type;
 
+        // Check if there is a prefix parse function for the current token type
         let prefix_fn = match self.prefix_parse_fns.get(&token_type) {
             Some(func) => *func,
             None => {
@@ -166,25 +175,30 @@ impl Parser {
                 )));
             }
         };
-        
+
+        // Call the prefix parse function
         let mut left_exp = prefix_fn(self);
 
         while !self.peek_token_is(TokenType::Semicolon) && precedence < self.peek_precedence()? {
-            let peek_token_type = self.peek_token.as_ref().ok_or(ParseError::InvalidExpression(String::from("No peek token")))?.token_type;
+            let peek_token_type = self
+                .peek_token
+                .as_ref()
+                .ok_or(ParseError::InvalidExpression(String::from("No peek token")))?
+                .token_type;
 
             // Clone the function pointer outside the match
             let infix_fn = match self.infix_parse_fns.get(&peek_token_type).copied() {
                 Some(f) => f,
                 None => break,
             };
-
-            // Now we can mutably borrow self
             self.next_token();
             left_exp = infix_fn(self, left_exp)?;
         }
 
         Ok(left_exp)
     }
+
+    // this is a git test
 
     pub fn peek_precedence(&mut self) -> Result<Precedence, String> {
         let tt = self.peek_token.clone().ok_or("err")?.token_type;
@@ -196,25 +210,28 @@ impl Parser {
             Some(tok) => tok.clone(),
             None => panic!("No current token in parse_prefix_expression"),
         };
-        
+
         debug!("Parsing prefix expression with token: {:?}", token);
         let operator = token.literal.clone();
         debug!("Operator extracted: {}", operator);
-        
+
         self.next_token();
-        
-        debug!("After moving to next token, current token is: {:?}", self.cur_token);
-        let right = match self.parse_expression(Precedence::Prefix) {
+
+        debug!(
+            "After moving to next token, current token is: {:?}",
+            self.cur_token
+        );
+        let right = match self.parse_expression(Precedence::Lowest) {
             Ok(result) => {
                 debug!("Successfully parsed right expression: {:?}", result);
                 Box::new(result)
-            },
+            }
             Err(err) => {
                 debug!("Failed to parse right expression: {:?}", err);
                 panic!("Could not parse right expression: {:?}", err)
-            },
+            }
         };
-        
+
         let prefix_expr = ExpressionType::PrefixExpression(PrefixExpression {
             token,
             operator,
@@ -289,11 +306,10 @@ impl Parser {
     }
 
     pub fn parse_expression_statement(&mut self) -> Result<ExpressionStatement, ParseError> {
-        debug!("EXPRESSION statement, cur_token: {:?}", self.cur_token);
-
         // Get the token, return ParseError if None
-        let token = self.cur_token.clone()
-            .ok_or(ParseError::InvalidExpression("No token available".to_string()))?;
+        let token = self.cur_token.clone().ok_or(ParseError::InvalidExpression(
+            "No token available".to_string(),
+        ))?;
 
         // Create the statement with the token
         let mut statement = ExpressionStatement {
@@ -302,6 +318,7 @@ impl Parser {
         };
 
         // Parse the expression and set it in the statement
+        // Set the precedence as the lowest since this is the first time we enter the function
         statement.expression = Some(self.parse_expression(Precedence::Lowest)?);
 
         // Skip any semicolons
@@ -309,7 +326,10 @@ impl Parser {
             self.next_token();
         }
 
-        debug!("Here is the current token at the end of this!: {:?}", self.cur_token);
+        debug!(
+            "Here is the current token at the end of this!: {:?}",
+            self.cur_token
+        );
         Ok(statement)
     }
 
@@ -325,13 +345,19 @@ impl Parser {
             value: integer_value,
         })
     }
-    /*
-    pub fn parse_expression(&mut self) -> Result<ExpressionStatement, String> {
-        while !self.cur_token_is(TokenType::Semicolon) {
-            self.parse_identifier();
-        }
+
+    pub fn parse_boolean_expression(&mut self) -> ExpressionType {
+        let cur_token = match self.cur_token.as_ref() {
+            Some(tok) => tok,
+            None => panic!("Ahhhh"),
+        };
+        let boolean_value = cur_token.token_type == TokenType::BooleanTrue;
+
+        ExpressionType::BooleanLiteral(BooleanLiteral {
+            token: self.cur_token.clone().unwrap(),
+            value: boolean_value,
+        })
     }
-    */
 
     pub fn parse_identifier(&mut self) -> ExpressionType {
         ExpressionType::Identifier(Identifier::new(self.cur_token.clone().unwrap()))
@@ -556,7 +582,7 @@ mod tests {
             "let five = 5;
             let ten = 10;
             let add = fn(x, y) {
-                x + y;
+            x + y;
             };
             let result = add(five, ten);
             ",
@@ -673,8 +699,7 @@ mod tests {
             let prefix_expr = extract_prefix_expression(&program);
 
             assert_eq!(
-                prefix_expr.operator, 
-                *operator,
+                prefix_expr.operator, *operator,
                 "Operator mismatch for input '{}'. Expected: '{}', got: '{}'",
                 input, operator, prefix_expr.operator
             );
@@ -682,8 +707,7 @@ mod tests {
             match &*prefix_expr.right {
                 ExpressionType::IntegerLiteral(int) => {
                     assert_eq!(
-                        int.value, 
-                        *expected_value,
+                        int.value, *expected_value,
                         "Value mismatch for input '{}'. Expected: {}, got: {}",
                         input, expected_value, int.value
                     );
@@ -692,6 +716,64 @@ mod tests {
                     "Expected integer literal for input '{}', got {:?}",
                     input, other
                 ),
+            }
+        }
+    }
+
+    fn test_identifier(exp: &ExpressionType, value: &str) -> bool {
+        match exp {
+            ExpressionType::Identifier(ident) => {
+                // Check identifier value
+                if ident.value != value {
+                    println!("ident.value not {}. got={}", value, ident.value);
+                    return false;
+                }
+
+                // Check token literal
+                if ident.token_literal() != value {
+                    println!(
+                        "ident.token_literal not {}. got={}",
+                        value,
+                        ident.token_literal()
+                    );
+                    return false;
+                }
+
+                true
+            }
+            _ => {
+                println!("exp not Identifier. got={:?}", exp);
+                false
+            }
+        }
+    }
+
+    #[test]
+    pub fn test_parse_boolean_expression() {
+        let test_programs = [("true;", true), ("false;", false)];
+        for (input, expected_value) in test_programs.iter() {
+            debug!("Testing boolean expression with input: {}", input);
+            let program = parse_test_program(input);
+
+            assert_eq!(
+                program.statements.len(),
+                1,
+                "program should have exactly one statement. got={}",
+                program.statements.len()
+            );
+
+            match &program.statements[0] {
+                StatementType::Expression(expr_stmt) => match &expr_stmt.expression {
+                    Some(ExpressionType::BooleanLiteral(bool_literal)) => {
+                        assert_eq!(
+                            bool_literal.value, *expected_value,
+                            "boolean value not {}. got={}",
+                            expected_value, bool_literal.value
+                        );
+                    }
+                    other => panic!("expression is not BooleanLiteral. got={:?}", other),
+                },
+                other => panic!("statement is not ExpressionStatement. got={:?}", other),
             }
         }
     }
@@ -706,15 +788,15 @@ mod tests {
             ("5 > 5;", 5, ">", 5),
             ("5 < 5;", 5, "<", 5),
             ("5 == 5;", 5, "==", 5),
-            //("5 != 5", 5, "!=", 5),
+            ("5 != 5", 5, "!=", 5),
         ];
 
         for (input, left_value, operator, right_value) in test_programs.iter() {
             debug!("Testing infix expression with input: {}", input);
             let program = parse_test_program(input);
-            
+
             assert_eq!(
-                program.statements.len(), 
+                program.statements.len(),
                 1,
                 "program should have exactly one statement. got={}",
                 program.statements.len()
@@ -726,44 +808,42 @@ mod tests {
                         Some(ExpressionType::InfixExpression(infix)) => {
                             // Check operator
                             assert_eq!(
-                                infix.operator, 
-                                *operator,
+                                infix.operator, *operator,
                                 "operator is not '{}'. got={}",
-                                operator, 
-                                infix.operator
+                                operator, infix.operator
                             );
 
                             // Check left value
                             match &*infix.left {
                                 ExpressionType::IntegerLiteral(left_int) => {
                                     assert_eq!(
-                                        left_int.value, 
-                                        *left_value,
+                                        left_int.value, *left_value,
                                         "left value not {}. got={}",
-                                        left_value, 
-                                        left_int.value
+                                        left_value, left_int.value
                                     );
-                                },
-                                other => panic!("left expression not IntegerLiteral. got={:?}", other),
+                                }
+                                other => {
+                                    panic!("left expression not IntegerLiteral. got={:?}", other)
+                                }
                             }
 
                             // Check right value
                             match &*infix.right {
                                 ExpressionType::IntegerLiteral(right_int) => {
                                     assert_eq!(
-                                        right_int.value, 
-                                        *right_value,
+                                        right_int.value, *right_value,
                                         "right value not {}. got={}",
-                                        right_value, 
-                                        right_int.value
+                                        right_value, right_int.value
                                     );
-                                },
-                                other => panic!("right expression not IntegerLiteral. got={:?}", other),
+                                }
+                                other => {
+                                    panic!("right expression not IntegerLiteral. got={:?}", other)
+                                }
                             }
-                        },
+                        }
                         other => panic!("expression is not InfixExpression. got={:?}", other),
                     }
-                },
+                }
                 other => panic!("statement is not ExpressionStatement. got={:?}", other),
             }
         }
