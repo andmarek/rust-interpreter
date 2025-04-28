@@ -453,7 +453,12 @@ impl Parser {
 
 impl InfixExpression {
     pub fn string(&self) -> String {
-        format!("({} {} {})", self.left.string(), self.operator, self.right.string())
+        format!(
+            "({} {} {})",
+            self.left.string(),
+            self.operator,
+            self.right.string()
+        )
     }
 }
 
@@ -863,9 +868,23 @@ mod tests {
     // on page 82
     #[test]
     pub fn test_operator_precedence_parsing() {
-        init_logger();
+        //init_logger();
 
-        let operator_tests = [("-a * b", "((-a) * b)")];
+        let operator_tests = [
+            ("-a * b", "((-a) * b)"),
+            ("!-a", "(!(-a))"),
+            ("a + b + c", "((a + b) + c)"),
+            ("a + b - c", "((a + b) - c)"),
+            ("a * b / c", "((a * b) / c)"),
+            ("a + b * c + d / e - f", "(((a + (b * c)) + (d / e)) - f)"),
+            ("3 + 4; -5 * 5", "(3 + 4)((-5) * 5)"),
+            ("5 > 4 == 3 < 4", "((5 > 4) == (3 < 4))"),
+            ("5 < 4 != 3 > 4", "((5 < 4) != (3 > 4))"),
+            (
+                "3 + 4 * 5 == 3 * 1 + 4 * 5",
+                "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))",
+            ),
+        ];
         for (input, expected) in operator_tests.iter() {
             let program = parse_test_program(input);
             let program_str = program.string();
