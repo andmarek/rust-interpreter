@@ -11,7 +11,7 @@ pub enum ExpressionType {
     Identifier(Identifier),
     StringLiteral(StringLiteral),
     IntegerLiteral(IntegerLiteral),
-    BooleanLiteral(BooleanLiteral),
+    BooleanLiteral(BooleanLiteral), // boolean literals section (page 81)
     PrefixExpression(PrefixExpression),
     InfixExpression(InfixExpression),
 }

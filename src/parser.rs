@@ -475,121 +475,87 @@ mod tests {
     fn init_logger() {
         Lazy::force(&INIT);
     }
+
+
+    fn parse_input(program: &str) -> Program{
+        let lexer = Lexer::new(program.to_string());
+        let mut parser = Parser::new(lexer);
+        match parser.parse_program() {
+            Ok(program) => program,
+            Err(err) => panic!("Failed to parse program: {}", err),
+        }
+    }
+
+    fn assert_statement_count(program: &Program, expected: usize) {
+        if program.statements.len() != expected {
+            panic!(
+                "Expected {} statements, got {}",
+                expected,
+                program.statements.len()
+            );
+        }
+    }
+
+
     #[test]
     fn test_parse_single_let_statement() {
-        let input = String::from("let x = 5;");
-        debug!("Testing with input: {}", input); // This will print
-
-        let lexer = Lexer::new(input);
-
-        let mut parser = Parser::new(lexer);
-
-        match parser.parse_program() {
-            Ok(program) => {
-                debug!("Program result is {:?}", program.string());
-                let statements_len = program.statements.len();
-                debug!("Number of statements: {}", statements_len);
-                for statement in program.statements {
-                    debug!("Statement: {:?}", statement);
-                }
-                if statements_len != 1 {
-                    panic!("Expected 1 statement, got {}", statements_len);
-                }
-            }
-            Err(err) => {
-                panic!("Failed to parse program: {}", err);
-            }
-        }
+        let program = parse_input("return 5;");
+        debug!("Program is {:?}", program.string());
+        assert_statement_count(&program, 1);
     }
 
     #[test]
     fn test_parse_return_statement() {
-        let input = String::from("return 5;");
-        let lexer = Lexer::new(input);
-        let mut parser = Parser::new(lexer);
-        let program = parser.parse_program();
-
-        match program {
-            Ok(program) => {
-                debug!("Program is {:?}", program.string());
-                let unwrapped_program = program;
-                if unwrapped_program.statements.len() != 1 {
-                    panic!(
-                        "Expected 1 statement, got {}",
-                        unwrapped_program.statements.len()
-                    );
-                }
-            }
-            Err(err) => {
-                panic!("Failed to parse program: {}", err);
-            }
-        }
+        let program = parse_input("return 5;");
+        assert_statement_count(&program,1);
     }
 
     #[test]
     fn test_parse_multiple_let_statements() {
-        let input = String::from("let x = 5; let y = 10;");
-        let lexer = Lexer::new(input);
-        let mut parser = Parser::new(lexer);
-        let program = parser.parse_program();
-        match program {
-            Ok(program) => {
-                let statements = program.statements;
-                if statements.len() != 2 {
-                    panic!("Expected 2 statements, got {:?}", statements.len());
-                }
+        let input = "let x = 5; let y = 10;";
+        let program = parse_input(input);
+        assert_statement_count(&program, 2);
+        
+        let statements = program.statements;
+        if statements.len() != 2 {
+            panic!("Expected 2 statements, got {:?}", statements.len());
+        }
 
-                if statements[0].token().literal != "let" {
-                    panic!(
-                        "Expected first statement to be let, got {}",
-                        statements[0].token().literal
-                    );
-                }
-                match &statements[0] {
-                    StatementType::Let(let_stmt) => {
-                        if let Some(name) = &let_stmt.name {
-                            if name.token.literal != "x" {
-                                panic!("Expected name to be x, got {}", name.token.literal);
-                            }
-                        }
+        if statements[0].token().literal != "let" {
+            panic!(
+                "Expected first statement to be let, got {}",
+                statements[0].token().literal
+            );
+        }
+        match &statements[0] {
+            StatementType::Let(let_stmt) => {
+                if let Some(name) = &let_stmt.name {
+                    if name.token.literal != "x" {
+                        panic!("Expected name to be x, got {}", name.token.literal);
                     }
-                    _ => panic!(
-                        "Expected first statement to be a let statement, got {:?}",
-                        statements[0]
-                    ),
                 }
+            }
+            _ => panic!(
+                "Expected first statement to be a let statement, got {:?}",
+                statements[0]
+            ),
+        }
 
-                if statements[1].token().literal != "let" {
-                    panic!(
-                        "Expected second statement to be let, got {}",
-                        statements[1].token().literal
-                    );
-                }
-            }
-            Err(err) => {
-                panic!("Failed to parse program: {}", err);
-            }
+        if statements[1].token().literal != "let" {
+            panic!(
+                "Expected second statement to be let, got {}",
+                statements[1].token().literal
+            );
         }
     }
 
     #[test]
     fn test_parse_let_and_return_statement() {
-        let input = String::from("let x = 5; return x;");
-        let lexer = Lexer::new(input);
-        let mut parser = Parser::new(lexer);
+        let input = "let x = 5; return x;";
+        let program = parse_input(input);
 
-        let program = parser.parse_program();
-        match program {
-            Ok(program) => {
-                let statements = program.statements;
-                if statements.len() != 2 {
-                    panic!("Expected 2 statements, got {:?}", statements.len());
-                }
-            }
-            Err(err) => {
-                panic!("Failed to parse program: {}", err);
-            }
-        }
+        // TODO: need to assert more specifically
+        assert_statement_count(&program, 2);
     }
 
     #[test]
@@ -620,26 +586,15 @@ mod tests {
 
     #[test]
     fn test_identifier_expression() {
-        let input = String::from("foobar;");
-        let lexer = Lexer::new(input);
-        let mut parser = Parser::new(lexer);
-        match parser.parse_program() {
-            Ok(program) => {
-                if program.statements.len() != 1 {
-                    panic!("Expected 1 statement, got {}", program.statements.len());
-                }
-                let ref expr_statement = &program.statements[0];
-
-                match expr_statement {
-                    StatementType::Expression(expr_statement) => {
-                        assert_eq!(expr_statement.token.literal, "foobar");
-                    }
-                    other => panic!("Expected expression statement, got {:?}", other),
-                }
+        let program = parse_input("foobar;");
+        assert_statement_count(&program, 1);
+        
+        let ref expr_statement = &program.statements[0];
+        match expr_statement {
+            StatementType::Expression(expr_statement) => {
+                assert_eq!(expr_statement.token.literal, "foobar");
             }
-            Err(err) => {
-                panic!("Parser error: {}", err);
-            }
+            other => panic!("Expected expression statement, got {:?}", other),
         }
     }
 
@@ -652,51 +607,24 @@ mod tests {
 
     #[test]
     fn test_integer_literal() {
-        let l = Lexer::new(String::from("5;"));
-        let mut p = Parser::new(l);
-
-        match p.parse_program() {
-            Ok(program) => {
-                if program.statements.len() != 1 {
-                    panic!(
-                        "program has not enough statements, got {:?}",
-                        program.statements.len()
-                    )
-                }
-                match &program.statements[0] {
-                    StatementType::Expression(expr_stmt) => {
-                        if let Some(ExpressionType::IntegerLiteral(int_literal)) =
-                            &expr_stmt.expression
-                        {
-                            assert_eq!(int_literal.value, 5);
-                            assert_eq!(int_literal.token.literal, "5");
-                        } else {
-                            panic!("Expression is not an integer literal");
-                        }
-                    }
-                    _ => panic!("Statement is not an expression statement"),
+        let program = parse_input("5;");
+        assert_statement_count(&program, 1);
+        match &program.statements[0] {
+            StatementType::Expression(expr_stmt) => {
+                if let Some(ExpressionType::IntegerLiteral(int_literal)) =
+                    &expr_stmt.expression
+                {
+                    assert_eq!(int_literal.value, 5);
+                    assert_eq!(int_literal.token.literal, "5");
+                } else {
+                    panic!("Expression is not an integer literal");
                 }
             }
-            Err(err) => panic!("Parser error: {}", err),
+            _ => panic!("Statement is not an expression statement"),
         }
     }
 
-    /// Helper function to parse programs. Currently for tests.
-    fn parse_test_program(input: &str) -> Program {
-        let l = Lexer::new(String::from(input));
-        let mut p = Parser::new(l);
-        p.parse_program().unwrap_or_else(|err| {
-            panic!("Failed to parse program: {}", err);
-        })
-    }
-
-    ///
     fn extract_prefix_expression(program: &Program) -> &PrefixExpression {
-        assert_eq!(
-            program.statements.len(),
-            1,
-            "Program should have exactly one statement"
-        );
         match &program.statements[0] {
             StatementType::Expression(expr_stmt) => match &expr_stmt.expression {
                 Some(ExpressionType::PrefixExpression(prefix_expr)) => prefix_expr,
@@ -711,7 +639,8 @@ mod tests {
         let test_data = [("!5;", "!", 5), ("-15;", "-", 15)];
         for (input, operator, expected_value) in test_data.iter() {
             debug!("Testing prefix expression with input: {}", input);
-            let program = parse_test_program(input);
+            let program = parse_input(input);
+            assert_statement_count(&program, 1);
             let prefix_expr = extract_prefix_expression(&program);
 
             assert_eq!(
@@ -769,15 +698,8 @@ mod tests {
         let test_programs = [("true;", true), ("false;", false)];
         for (input, expected_value) in test_programs.iter() {
             debug!("Testing boolean expression with input: {}", input);
-            let program = parse_test_program(input);
-
-            assert_eq!(
-                program.statements.len(),
-                1,
-                "program should have exactly one statement. got={}",
-                program.statements.len()
-            );
-
+            let program = parse_input(input);
+            assert_statement_count(&program, 1); 
             match &program.statements[0] {
                 StatementType::Expression(expr_stmt) => match &expr_stmt.expression {
                     Some(ExpressionType::BooleanLiteral(bool_literal)) => {
@@ -809,7 +731,7 @@ mod tests {
 
         for (input, left_value, operator, right_value) in test_programs.iter() {
             debug!("Testing infix expression with input: {}", input);
-            let program = parse_test_program(input);
+            let program = parse_input(input);
 
             assert_eq!(
                 program.statements.len(),
@@ -867,7 +789,7 @@ mod tests {
 
     // on page 82
     #[test]
-    pub fn test_operator_precedence_parsing() {
+    pub fn test_operator_precedence_parsing() { // page 82
         //init_logger();
 
         let operator_tests = [
@@ -886,13 +808,18 @@ mod tests {
             ),
         ];
         for (input, expected) in operator_tests.iter() {
-            let program = parse_test_program(input);
+            let program = parse_input(input);
             let program_str = program.string();
 
             if &program_str != expected {
                 panic!("Expected {}, got {}", expected, program.string())
             }
         }
+    }
+
+    #[test]
+    pub fn test_boolean_literal() {
+        // 
     }
 
     // #[test]
