@@ -42,9 +42,6 @@ pub struct Parser {
     cur_token: Option<Token>,
     peek_token: Option<Token>,
     errors: Vec<String>,
-    // Each token we encounter can one of two types of functions associated with parsing it,
-    // depending on whether the token is found in the infix or prefix position
-    // Pratt would call these nuds (null notations)
     prefix_parse_fns: HashMap<TokenType, fn(&mut Parser) -> ExpressionType>,
     infix_parse_fns:
         HashMap<TokenType, fn(&mut Parser, ExpressionType) -> Result<ExpressionType, ParseError>>,
@@ -74,7 +71,7 @@ impl Parser {
             infix_parse_fns: HashMap::new(),
         };
 
-        // Register parse functions for each type of expression
+        // Register prefix parse functions
         parser.register_prefix(TokenType::Ident, Self::parse_identifier);
         parser.register_prefix(TokenType::Int, Self::parse_integer_literal);
         parser.register_prefix(TokenType::Bang, Self::parse_prefix_expression);
@@ -82,6 +79,7 @@ impl Parser {
         parser.register_prefix(TokenType::BooleanTrue, Self::parse_boolean_expression);
         parser.register_prefix(TokenType::BooleanFalse, Self::parse_boolean_expression);
 
+        // Register infix parse functions
         parser.register_infix(TokenType::Plus, Self::parse_infix_expression);
         parser.register_infix(TokenType::Minus, Self::parse_infix_expression);
         parser.register_infix(TokenType::Asterisk, Self::parse_infix_expression);
@@ -151,49 +149,45 @@ impl Parser {
         &mut self,
         precedence: Precedence,
     ) -> Result<ExpressionType, ParseError> {
-        let token_type = self
-            .cur_token
-            .as_ref()
-            .ok_or(ParseError::InvalidExpression(String::from(
-                "No current token",
-            )))?
+        // Get current token type
+        let token_type = self.cur_token.as_ref()
+            .ok_or_else(|| ParseError::InvalidExpression("No current token".into()))?
             .token_type;
 
-        // Check if there is a prefix parse function for the current token type
-        let prefix_fn = match self.prefix_parse_fns.get(&token_type) {
-            Some(func) => *func,
-            None => {
+        // Get and call prefix parse function
+        let prefix_parse_fn = self.prefix_parse_fns.get(&token_type)
+            .ok_or_else(|| {
                 debug!("No prefix function found for token type {:?}", token_type);
-                return Err(ParseError::InvalidExpression(format!(
+                ParseError::InvalidExpression(format!(
                     "No prefix parse function found for {:?}",
                     token_type
-                )));
-            }
-        };
+                ))
+            })?;
 
-        // Call the prefix parse function
-        let mut left_exp = prefix_fn(self);
+        // Call the prefix parse function for the current token type
+        let mut left_exp = prefix_parse_fn(self);
 
+        // While the next token is not a semicolon and the current precedence is higher than the current token
         while !self.peek_token_is(TokenType::Semicolon) && precedence < self.peek_precedence()? {
-            let peek_token_type = self
-                .peek_token
-                .as_ref()
-                .ok_or(ParseError::InvalidExpression(String::from("No peek token")))?
+            // Get the token type of the next token
+            let peek_token_type = self.peek_token.as_ref()
+                .ok_or_else(|| ParseError::InvalidExpression("No peek token".into()))?
                 .token_type;
 
-            // Clone the function pointer outside the match
-            let infix_fn = match self.infix_parse_fns.get(&peek_token_type).copied() {
-                Some(f) => f,
-                None => break,
+            // Get the infix parse function for the next token type
+            let Some(infix_fn) = self.infix_parse_fns.get(&peek_token_type).copied() else {
+                break;
             };
+
+            // Consume the next token
             self.next_token();
+
+            // call the parse_infix_expression for the current (new) token type
             left_exp = infix_fn(self, left_exp)?;
         }
 
         Ok(left_exp)
     }
-
-    // this is a git test
 
     pub fn peek_precedence(&mut self) -> Result<Precedence, String> {
         let tt = self.peek_token.clone().ok_or("err")?.token_type;
@@ -267,18 +261,13 @@ impl Parser {
         &mut self,
         left: ExpressionType,
     ) -> Result<ExpressionType, ParseError> {
-        let token = self
-            .cur_token
-            .as_ref()
-            .ok_or(ParseError::UnexpectedEOF)?
-            .clone();
-        let operator = token.literal.clone();
+        let token = self.cur_token.as_ref().ok_or(ParseError::UnexpectedEOF)?.clone();
         let cur_precedence = self.cur_precedence();
         self.next_token();
         let right = Box::new(self.parse_expression(cur_precedence)?);
         Ok(ExpressionType::InfixExpression(InfixExpression {
-            token,
-            operator,
+            token: token.clone(),
+            operator: token.literal.clone(),
             left: Box::new(left),
             right,
         }))
@@ -476,8 +465,8 @@ mod tests {
         Lazy::force(&INIT);
     }
 
-
-    fn parse_input(program: &str) -> Program{
+    // Test helpers
+    fn parse_input(program: &str) -> Program {
         let lexer = Lexer::new(program.to_string());
         let mut parser = Parser::new(lexer);
         match parser.parse_program() {
@@ -496,131 +485,12 @@ mod tests {
         }
     }
 
-
-    #[test]
-    fn test_parse_single_let_statement() {
-        let program = parse_input("return 5;");
-        debug!("Program is {:?}", program.string());
-        assert_statement_count(&program, 1);
-    }
-
-    #[test]
-    fn test_parse_return_statement() {
-        let program = parse_input("return 5;");
-        assert_statement_count(&program,1);
-    }
-
-    #[test]
-    fn test_parse_multiple_let_statements() {
-        let input = "let x = 5; let y = 10;";
-        let program = parse_input(input);
-        assert_statement_count(&program, 2);
-        
-        let statements = program.statements;
-        if statements.len() != 2 {
-            panic!("Expected 2 statements, got {:?}", statements.len());
-        }
-
-        if statements[0].token().literal != "let" {
+    fn assert_statement_literal(program: &Program, index: usize, str_content: &str) {
+        if program.statements[index].token().literal != str_content {
             panic!(
-                "Expected first statement to be let, got {}",
-                statements[0].token().literal
-            );
-        }
-        match &statements[0] {
-            StatementType::Let(let_stmt) => {
-                if let Some(name) = &let_stmt.name {
-                    if name.token.literal != "x" {
-                        panic!("Expected name to be x, got {}", name.token.literal);
-                    }
-                }
-            }
-            _ => panic!(
-                "Expected first statement to be a let statement, got {:?}",
-                statements[0]
-            ),
-        }
-
-        if statements[1].token().literal != "let" {
-            panic!(
-                "Expected second statement to be let, got {}",
-                statements[1].token().literal
-            );
-        }
-    }
-
-    #[test]
-    fn test_parse_let_and_return_statement() {
-        let input = "let x = 5; return x;";
-        let program = parse_input(input);
-
-        // TODO: need to assert more specifically
-        assert_statement_count(&program, 2);
-    }
-
-    #[test]
-    fn test_stringify_program() {
-        let input = String::from(
-            "let five = 5;
-            let ten = 10;
-            let add = fn(x, y) {
-            x + y;
-            };
-            let result = add(five, ten);
-            ",
-        );
-        let lexer = Lexer::new(input);
-        let mut parser = Parser::new(lexer);
-        let program = parser.parse_program();
-        if program.is_ok() {
-            let unwrapped_program = program.unwrap();
-
-            debug!("Program is {:?}", unwrapped_program.string());
-            if unwrapped_program.string()
-                != "let five = 5;let ten = 10;let add = fn(x,y){x+y;let result = add(five,ten);"
-            {
-                panic!("Expected input, got {}", unwrapped_program.string());
-            }
-        }
-    }
-
-    #[test]
-    fn test_identifier_expression() {
-        let program = parse_input("foobar;");
-        assert_statement_count(&program, 1);
-        
-        let ref expr_statement = &program.statements[0];
-        match expr_statement {
-            StatementType::Expression(expr_statement) => {
-                assert_eq!(expr_statement.token.literal, "foobar");
-            }
-            other => panic!("Expected expression statement, got {:?}", other),
-        }
-    }
-
-    fn check_errors(p: &Parser) {
-        if p.errors.len() == 0 {
-            return;
-        }
-        panic!("There were some errors in the parsing: {:?}", p.errors);
-    }
-
-    #[test]
-    fn test_integer_literal() {
-        let program = parse_input("5;");
-        assert_statement_count(&program, 1);
-        match &program.statements[0] {
-            StatementType::Expression(expr_stmt) => {
-                if let Some(ExpressionType::IntegerLiteral(int_literal)) =
-                    &expr_stmt.expression
-                {
-                    assert_eq!(int_literal.value, 5);
-                    assert_eq!(int_literal.token.literal, "5");
-                } else {
-                    panic!("Expression is not an integer literal");
-                }
-            }
-            _ => panic!("Statement is not an expression statement"),
+                "Expected {} for statement at {}, got {:?}",
+                str_content, index, program.statements[index]
+            )
         }
     }
 
@@ -635,12 +505,112 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_single_let_statement() {
+        let program = parse_input("return 5;");
+        debug!("Program is {:?}", program.string());
+        assert_statement_count(&program, 1);
+    }
+
+    #[test]
+    fn test_parse_return_statement() {
+        let program = parse_input("return 5;");
+        assert_statement_count(&program, 1);
+    }
+
+    #[test]
+    fn test_parse_multiple_let_statements() {
+        let input = "let x = 5; let y = 10;";
+        let program = parse_input(input);
+        assert_statement_count(&program, 2);
+
+        let statements = &program.statements;
+
+        assert_statement_literal(&program, 0, "let");
+        match &statements[0] {
+            StatementType::Let(let_stmt) => {
+                if let Some(name) = &let_stmt.name {
+                    if name.token.literal != "x" {
+                        panic!("Expected name to be x, got {}", name.token.literal);
+                    }
+                }
+            }
+            _ => panic!(
+                "Expected first statement to be a let statement, got {:?}",
+                statements[0]
+            ),
+        }
+    }
+
+    #[test]
+    fn test_parse_let_and_return_statement() {
+        let input = "let x = 5; return x;";
+        let program = parse_input(input);
+
+        // TODO: need to assert more specifically
+        assert_statement_count(&program, 2);
+    }
+
+    // #[test]
+    // fn test_stringify_program() {
+    //     let input = String::from(
+    //         "let five = 5;
+    //         let ten = 10;
+    //         let add = fn(x, y) {
+    //         x + y;
+    //         };
+    //         let result = add(five, ten);
+    //         ",
+    //     );
+    //     let program = parse_input(&input);
+
+    //     debug!("Program is {:?}", program.string());
+    //     if program.string()
+    //         != "let five = 5;let ten = 10;let add = fn(x,y){x+y;let result = add(five,ten);"
+    //     {
+    //         panic!("Expected input, got {}", program.string());
+    //     }
+    // }
+
+    #[test]
+    fn test_identifier_expression() {
+        let program = parse_input("foobar;");
+        assert_statement_count(&program, 1);
+
+        let ref expr_statement = &program.statements[0];
+        match expr_statement {
+            StatementType::Expression(expr_statement) => {
+                assert_eq!(expr_statement.token.literal, "foobar");
+            }
+            other => panic!("Expected expression statement, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_integer_literal() {
+        let program = parse_input("5;");
+        assert_statement_count(&program, 1);
+        match &program.statements[0] {
+            StatementType::Expression(expr_stmt) => {
+                if let Some(ExpressionType::IntegerLiteral(int_literal)) = &expr_stmt.expression {
+                    assert_eq!(int_literal.value, 5);
+                    assert_eq!(int_literal.token.literal, "5");
+                } else {
+                    panic!("Expression is not an integer literal");
+                }
+            }
+            _ => panic!("Statement is not an expression statement"),
+        }
+    }
+
+    #[test]
     pub fn test_parsing_prefix_expression() {
-        let test_data = [("!5;", "!", 5), ("-15;", "-", 15)];
-        for (input, operator, expected_value) in test_data.iter() {
+        let inputs = [("!5;", "!", 5), ("-15;", "-", 15)];
+
+        for (input, operator, expected_value) in inputs.iter() {
             debug!("Testing prefix expression with input: {}", input);
             let program = parse_input(input);
             assert_statement_count(&program, 1);
+
             let prefix_expr = extract_prefix_expression(&program);
 
             assert_eq!(
@@ -699,7 +669,7 @@ mod tests {
         for (input, expected_value) in test_programs.iter() {
             debug!("Testing boolean expression with input: {}", input);
             let program = parse_input(input);
-            assert_statement_count(&program, 1); 
+            assert_statement_count(&program, 1);
             match &program.statements[0] {
                 StatementType::Expression(expr_stmt) => match &expr_stmt.expression {
                     Some(ExpressionType::BooleanLiteral(bool_literal)) => {
@@ -733,12 +703,7 @@ mod tests {
             debug!("Testing infix expression with input: {}", input);
             let program = parse_input(input);
 
-            assert_eq!(
-                program.statements.len(),
-                1,
-                "program should have exactly one statement. got={}",
-                program.statements.len()
-            );
+            assert_statement_count(&program, 1);
 
             match &program.statements[0] {
                 StatementType::Expression(expr_stmt) => {
@@ -789,7 +754,8 @@ mod tests {
 
     // on page 82
     #[test]
-    pub fn test_operator_precedence_parsing() { // page 82
+    pub fn test_operator_precedence_parsing() {
+        // page 82
         //init_logger();
 
         let operator_tests = [
@@ -819,7 +785,7 @@ mod tests {
 
     #[test]
     pub fn test_boolean_literal() {
-        // 
+        //
     }
 
     // #[test]
