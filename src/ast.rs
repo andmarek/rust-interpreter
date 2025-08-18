@@ -7,23 +7,39 @@ pub trait Node {
 }
 
 #[derive(Debug)]
-pub enum ExpressionType {
-    Identifier(Identifier),
-    StringLiteral(StringLiteral),
-    IntegerLiteral(IntegerLiteral),
-    BooleanLiteral(BooleanLiteral), // boolean literals section (page 81)
-    PrefixExpression(PrefixExpression),
-    InfixExpression(InfixExpression),
+pub enum Expression {
+    Identifier { token: Token, value: String },
+    Integer { token: Token, value: i64 },
+    String { token: Token, value: String },
+    Boolean { token: Token, value: bool },
+    Prefix { token: Token, operator: String, right: Box<Expression> },
+    Infix { token: Token, left: Box<Expression>, operator: String, right: Box<Expression> },
 }
-impl ExpressionType {
-    pub fn string(&self) -> String {
+
+impl Node for Expression {
+    fn token_literal(&self) -> String {
         match self {
-            ExpressionType::Identifier(id) => id.string(),
-            ExpressionType::StringLiteral(sl) => sl.string(),
-            ExpressionType::IntegerLiteral(il) => il.string(),
-            ExpressionType::PrefixExpression(pe) => pe.string(),
-            ExpressionType::InfixExpression(ie) => ie.string(),
-            ExpressionType::BooleanLiteral(bl) => bl.string(),
+            Expression::Identifier { token, .. } => token.literal.clone(),
+            Expression::Integer { token, .. } => token.literal.clone(),
+            Expression::String { token, .. } => token.literal.clone(),
+            Expression::Boolean { token, .. } => token.literal.clone(),
+            Expression::Prefix { token, .. } => token.literal.clone(),
+            Expression::Infix { token, .. } => token.literal.clone(),
+        }
+    }
+
+    fn string(&self) -> String {
+        match self {
+            Expression::Identifier { value, .. } => value.clone(),
+            Expression::Integer { value, .. } => value.to_string(),
+            Expression::String { value, .. } => format!("\"{}\"", value),
+            Expression::Boolean { value, .. } => value.to_string(),
+            Expression::Prefix { operator, right, .. } => {
+                format!("({}{})", operator, right.string())
+            },
+            Expression::Infix { left, operator, right, .. } => {
+                format!("({} {} {})", left.string(), operator, right.string())
+            },
         }
     }
 }
@@ -31,11 +47,6 @@ impl ExpressionType {
 pub trait Statement: Node {
     fn statement_node(&self);
 }
-
-pub trait Expression: Node + std::fmt::Debug {
-    fn expression_node(&self);
-}
-
 /* A program is the root node of every AST that our parser will generate. A program is
 a list of statements. */
 #[derive(Debug)]
@@ -79,13 +90,13 @@ impl Node for Program {
 pub struct LetStatement {
     pub token: Token,
     pub name: Option<Identifier>,
-    pub value: Option<ExpressionType>,
+    pub value: Option<Expression>,
 }
 
 #[derive(Debug)]
 pub struct ReturnStatement {
     pub token: Token,
-    pub value: Option<ExpressionType>,
+    pub value: Option<Expression>,
 }
 
 impl Statement for ReturnStatement {
@@ -160,10 +171,6 @@ impl Node for StringLiteral {
     }
 }
 
-impl Expression for StringLiteral {
-    fn expression_node(&self) {}
-}
-
 #[derive(Debug)]
 pub struct NumberLiteral {
     pub token: Token,
@@ -194,14 +201,10 @@ impl Identifier {
     }
 }
 
-impl Expression for Identifier {
-    fn expression_node(&self) {}
-}
-
 #[derive(Debug)]
 pub struct ExpressionStatement {
     pub token: Token,
-    pub expression: Option<ExpressionType>,
+    pub expression: Option<Expression>,
 }
 
 impl Statement for ExpressionStatement {
@@ -234,11 +237,11 @@ impl Node for Identifier {
 pub struct PrefixExpression {
     pub token: Token,
     pub operator: String,
-    pub right: Box<ExpressionType>,
+    pub right: Box<Expression>,
 }
 
 impl PrefixExpression {
-    pub fn new(token: Token, operator: String, right: Box<ExpressionType>) -> PrefixExpression {
+    pub fn new(token: Token, operator: String, right: Box<Expression>) -> PrefixExpression {
         PrefixExpression {
             token,
             operator,
@@ -265,16 +268,16 @@ impl Node for PrefixExpression {
 pub struct InfixExpression {
     pub token: Token,
     pub operator: String,
-    pub left: Box<ExpressionType>,
-    pub right: Box<ExpressionType>,
+    pub left: Box<Expression>,
+    pub right: Box<Expression>,
 }
 
 impl InfixExpression {
     pub fn new(
         token: Token,
         operator: String,
-        right: Box<ExpressionType>,
-        left: Box<ExpressionType>,
+        right: Box<Expression>,
+        left: Box<Expression>,
     ) -> InfixExpression {
         InfixExpression {
             token,
@@ -294,7 +297,7 @@ impl Node for InfixExpression {
     fn string(&self) -> String {
         format!("({} {} {})", self.left.string(), self.operator, self.right.string())
     }
-    
+
 }
 
 #[derive(Debug)]
@@ -307,10 +310,6 @@ impl BooleanLiteral {
     pub fn new(token: Token, value: bool) -> BooleanLiteral {
         BooleanLiteral { token, value }
     }
-}
-
-impl Expression for BooleanLiteral {
-    fn expression_node(&self) {}
 }
 
 impl Node for BooleanLiteral {
