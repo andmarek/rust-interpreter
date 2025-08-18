@@ -93,21 +93,6 @@ impl Parser {
         parser
     }
 
-    pub fn next_token(&mut self) {
-        self.cur_token = self.peek_token.take();
-        self.peek_token = Some(self.lexer.next_token());
-
-        debug!("cur_token is {:?}", self.cur_token);
-        debug!(
-            "peek_token is {:?}",
-            self.peek_token.clone().unwrap().literal
-        );
-    }
-
-    pub fn get_errors(self) -> Vec<String> {
-        return self.errors.clone();
-    }
-
     /// Adds a prefix parsing function for a given token type
     pub fn register_prefix(&mut self, token_type: TokenType, f: fn(&mut Parser) -> Expression) {
         self.prefix_parse_fns.insert(token_type, f);
@@ -122,26 +107,55 @@ impl Parser {
         self.infix_parse_fns.insert(token_type, f);
     }
 
+    pub fn next_token(&mut self) {
+        self.cur_token = self.peek_token.replace(self.lexer.next_token());
+        debug!("cur_token is {:?}", self.cur_token);
+        debug!("peek_token is {:?}", self.peek_token.as_ref().unwrap().literal);
+    }
+
+    pub fn get_errors(self) -> Vec<String> {
+        return self.errors.clone();
+    }
+
     /// Main function that gets called to parse the entire program.
     /// A program consists of a list of statements that are parsed one at a time.
     pub fn parse_program(&mut self) -> Result<Program, ParseError> {
         let mut program = Program::new();
         debug!("Beginning to parse the program");
 
-        while let Some(token) = &self.cur_token {
-            debug!("Parsing the program, the current token is {:?}", token);
+        while self.cur_token.is_some() {
+            debug!("Parsing statement, current token: {:?}", self.cur_token);
 
-            match self.parse_statement()? {
-                Some(statement) => program.statements.push(statement),
-                None => break,
+            if let Some(statement) = self.parse_statement()? {
+                program.statements.push(statement);
+                self.next_token();
+            } else {
+                break;
             }
-
-            self.next_token();
         }
 
         debug!("Program statements: {:?}", program.statements);
-        debug!("We're done parsing the program.");
+        debug!("Finished parsing program");
         Ok(program)
+    }
+
+    pub fn parse_statement(&mut self) -> Result<Option<StatementType>, ParseError> {
+        debug!("Parsing statement");
+
+        let token = match &self.cur_token {
+            Some(token) => token,
+            None => return Ok(None),
+        };
+
+        let stmt = match token.token_type {
+            TokenType::Let => StatementType::Let(self.parse_let_statement()?),
+            TokenType::Return => StatementType::Return(self.parse_return_statement()?),
+            TokenType::Eof => return Ok(None),
+            _ => StatementType::Expression(self.parse_expression_statement()?),
+
+        };
+
+        Ok(Some(stmt))
     }
 
     pub fn parse_expression(
@@ -272,21 +286,7 @@ impl Parser {
         })
     }
 
-    pub fn parse_statement(&mut self) -> Result<Option<StatementType>, ParseError> {
-        debug!("Parsing statement");
-        match &self.cur_token {
-            Some(token) => {
-                let stmt = match token.token_type {
-                    TokenType::Let => StatementType::Let(self.parse_let_statement()?),
-                    TokenType::Return => StatementType::Return(self.parse_return_statement()?),
-                    TokenType::Eof => return Ok(None),
-                    _ => StatementType::Expression(self.parse_expression_statement()?),
-                };
-                Ok(Some(stmt))
-            }
-            None => Ok(None),
-        }
-    }
+
 
     pub fn parse_expression_statement(&mut self) -> Result<ExpressionStatement, ParseError> {
         // Get the token, return ParseError if None
@@ -501,6 +501,31 @@ mod tests {
             },
             _ => panic!("Statement is not an expression statement"),
         }
+    }
+
+    fn assert_integer_expression(expr: &Expression, expected_value: i64) {
+        match expr {
+            Expression::Integer { value, .. } => {
+                assert_eq!(*value, expected_value, "value mismatch");
+            }
+            _ => panic!("Expression is not an integer expression"),
+        }
+    }
+
+
+    fn assert_infix_expression(expr: &Expression, expected_left: i64, expected_operator: &str, expected_right: i64) {
+        match expr {
+            Expression::Infix { left, operator, right, .. } => {
+                assert_eq!(operator, expected_operator, "operator mismatch");
+                // Assert the left child of the expression is an integer expression
+                assert_integer_expression(&**left, expected_left);
+
+                // Assert the right child of the expression is an integer expression
+                assert_integer_expression(&**right, expected_right);
+            }
+            _ => panic!("Expression is not an infix expression"),
+        }
+
     }
 
     #[test]
