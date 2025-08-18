@@ -343,8 +343,13 @@ impl Parser {
     }
 
     pub fn parse_identifier(&mut self) -> Expression {
-        Expression::Identifier { token: self.cur_token.clone().unwrap(), value: String::from("") }
+        let token = self.cur_token.clone().unwrap();
+        Expression::Identifier {
+            value: token.literal.clone(),
+            token: token
+        }
     }
+
 
     /// Parses a return statement of the form
     /// return <expression>;
@@ -777,8 +782,6 @@ mod tests {
     #[test]
     pub fn test_operator_precedence_parsing() {
         // page 82
-        //init_logger();
-
         let operator_tests = [
             ("-a * b", "((-a) * b)"),
             ("!-a", "(!(-a))"),
