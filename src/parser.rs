@@ -590,9 +590,9 @@ mod tests {
         assert_statement_count(&program, 1);
         match &program.statements[0] {
             StatementType::Expression(expr_stmt) => {
-                if let Some(Expression::Integer{value, ..}) = &expr_stmt.expression {
-                    assert_eq!(int_literal.value, 5);
-                    assert_eq!(int_literal.token.literal, "5");
+                if let Some(Expression::Integer{ value, token, .. }) = &expr_stmt.expression {
+                    assert_eq!(*value, 5);
+                    assert_eq!(token.literal, "5");
                 } else {
                     panic!("Expression is not an integer literal");
                 }
@@ -631,21 +631,21 @@ mod tests {
         }
     }
 
-    fn test_identifier(exp: &Expression, value: &str) -> bool {
+    fn test_identifier(exp: &Expression, expected_value: &str) -> bool {
         match exp {
-            Expression::Identifier(ident) => {
+            Expression::Identifier{value, token, ..} => {
                 // Check identifier value
-                if ident.value != value {
-                    println!("ident.value not {}. got={}", value, ident.value);
+                if value != expected_value {
+                    println!("ident.value not {}. got={}", expected_value, value);
                     return false;
                 }
 
                 // Check token literal
-                if ident.token_literal() != value {
+                if token.literal != *value {
                     println!(
                         "ident.token_literal not {}. got={}",
                         value,
-                        ident.token_literal()
+                        token.literal
                     );
                     return false;
                 }
@@ -668,11 +668,11 @@ mod tests {
             assert_statement_count(&program, 1);
             match &program.statements[0] {
                 StatementType::Expression(expr_stmt) => match &expr_stmt.expression {
-                    Some(Expression::BooleanLiteral(bool_literal)) => {
+                    Some(Expression::Boolean{value, ..}) => {
                         assert_eq!(
-                            bool_literal.value, *expected_value,
+                            *value, *expected_value,
                             "boolean value not {}. got={}",
-                            expected_value, bool_literal.value
+                            expected_value, value
                         );
                     }
                     other => panic!("expression is not BooleanLiteral. got={:?}", other),
@@ -695,7 +695,7 @@ mod tests {
             ("5 != 5", 5, "!=", 5),
         ];
 
-        for (input, left_value, operator, right_value) in test_programs.iter() {
+        for (input, expected_left_value, expected_operator, expected_right_value) in test_programs.iter() {
             debug!("Testing infix expression with input: {}", input);
             let program = parse_input(input);
 
@@ -704,21 +704,21 @@ mod tests {
             match &program.statements[0] {
                 StatementType::Expression(expr_stmt) => {
                     match &expr_stmt.expression {
-                        Some(Expression::InfixExpression(infix)) => {
+                        Some(Expression::Infix{left, operator, right, ..}) => {
                             // Check operator
                             assert_eq!(
-                                infix.operator, *operator,
+                                operator, expected_operator,
                                 "operator is not '{}'. got={}",
-                                operator, infix.operator
+                                operator, expected_operator
                             );
 
                             // Check left value
-                            match &*infix.left {
-                                Expression::IntegerLiteral(left_int) => {
+                            match &**left {
+                                Expression::Integer{value, ..} => {
                                     assert_eq!(
-                                        left_int.value, *left_value,
+                                        *value, *expected_left_value,
                                         "left value not {}. got={}",
-                                        left_value, left_int.value
+                                        expected_left_value, value
                                     );
                                 }
                                 other => {
@@ -727,12 +727,12 @@ mod tests {
                             }
 
                             // Check right value
-                            match &*infix.right {
-                                Expression::IntegerLiteral(right_int) => {
+                            match &**right {
+                                Expression::Integer{value, ..} => {
                                     assert_eq!(
-                                        right_int.value, *right_value,
+                                        *value, *expected_right_value,
                                         "right value not {}. got={}",
-                                        right_value, right_int.value
+                                        expected_right_value, value
                                     );
                                 }
                                 other => {
