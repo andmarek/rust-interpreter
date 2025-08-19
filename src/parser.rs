@@ -75,8 +75,8 @@ impl Parser {
         parser.register_prefix(TokenType::Int, Self::parse_integer_literal);
         parser.register_prefix(TokenType::Bang, Self::parse_prefix_expression);
         parser.register_prefix(TokenType::Minus, Self::parse_prefix_expression);
-        parser.register_prefix(TokenType::BooleanTrue, Self::parse_boolean_expression);
-        parser.register_prefix(TokenType::BooleanFalse, Self::parse_boolean_expression);
+        parser.register_prefix(TokenType::BooleanTrue, Self::parse_boolean);
+        parser.register_prefix(TokenType::BooleanFalse, Self::parse_boolean);
 
         // Register infix parse functions
         parser.register_infix(TokenType::Plus, Self::parse_infix_expression);
@@ -329,16 +329,12 @@ impl Parser {
         }
     }
 
-    pub fn parse_boolean_expression(&mut self) -> Expression {
-        let cur_token = match self.cur_token.as_ref() {
-            Some(tok) => tok,
-            None => panic!("Ahhhh"),
-        };
+    pub fn parse_boolean(&mut self) -> Expression {
+        let cur_token = self.cur_token.clone().unwrap();
         let boolean_value = cur_token.token_type == TokenType::BooleanTrue;
-
         Expression::Boolean {
-            token: self.cur_token.clone().unwrap(),
-            value: boolean_value,
+            token: cur_token,
+            value: boolean_value
         }
     }
 
@@ -514,6 +510,15 @@ mod tests {
                 assert_eq!(*value, expected_value, "value mismatch");
             }
             _ => panic!("Expression is not an integer expression"),
+        }
+    }
+
+    fn test_boolean_literal(expression: &Expression, expected_boolean: bool) {
+        match expression {
+            Expression::Boolean { value, .. } => {
+                assert_eq!(*value, expected_boolean, "value mismatch");
+            }
+            _ => panic!("Expression is not a boolean expression"),
         }
     }
 
@@ -713,6 +718,58 @@ mod tests {
     }
 
     #[test]
+    pub fn parse_boolean_infix_expressions() {
+        let test_programs = [
+            ("true == true", true, "==", true),
+            ("true != false", true, "!=", false),
+            ("false == false", false, "==", false),
+        ];
+
+        for (input, expected_left_value, expected_operator, expected_right_value) in test_programs.iter() {
+            let program = parse_input(input);
+            match &program.statements[0] {
+                StatementType::Expression(expr_stmt) => {
+                    match &expr_stmt.expression {
+                        Some(Expression::Infix{left, operator, right, ..}) => {
+                            // Check operator
+                            assert_eq!(operator, expected_operator, "operator is not {}. got={}", expected_operator, operator);
+
+                            match &**left {
+                                Expression::Boolean{value, ..} => {
+                                    assert_eq!(
+                                        *value, *expected_left_value,
+                                        "left value not {}, got={}",
+                                        expected_left_value, value
+                                    )
+                                },
+                                other => panic!("Boolean expression not found")
+
+                            }
+
+                            match &**right {
+                                Expression::Boolean{value, ..} => {
+                                    assert_eq!(
+                                        *value, *expected_right_value,
+                                        "right value not {}. got={}",
+                                        expected_right_value, value
+                                    );
+                                }
+                                other => {
+                                    panic!("right expression not IntegerLiteral. got={:?}", other)
+                                }
+                            }
+                        },
+                        other => panic!("expression is not Infix. got={:?}", expr_stmt.expression),
+                    }
+
+                },
+                other => panic!("statement is not ExpressionStatement. got={:?}", other),
+            }
+        }
+    }
+
+
+    #[test]
     pub fn test_parse_infix_expression() {
         let test_programs = [
             ("5 + 5;", 5, "+", 5),
@@ -723,6 +780,7 @@ mod tests {
             ("5 < 5;", 5, "<", 5),
             ("5 == 5;", 5, "==", 5),
             ("5 != 5", 5, "!=", 5),
+
         ];
 
         for (input, expected_left_value, expected_operator, expected_right_value) in test_programs.iter() {
@@ -750,7 +808,7 @@ mod tests {
                                         "left value not {}. got={}",
                                         expected_left_value, value
                                     );
-                                }
+                                },
                                 other => {
                                     panic!("left expression not IntegerLiteral. got={:?}", other)
                                 }
@@ -796,6 +854,22 @@ mod tests {
                 "3 + 4 * 5 == 3 * 1 + 4 * 5",
                 "((3 + (4 * 5)) == ((3 * 1) + (4 * 5)))",
             ),
+            (
+                "true",
+                "true"
+            ),
+            (
+                "false",
+                "false"
+            ),
+            (
+                "3 > 5 == false",
+                "((3 > 5) == false)",
+            ),
+            (
+                "3 < 5 == true",
+                "((3 < 5) == true)",
+            ),
         ];
         for (input, expected) in operator_tests.iter() {
             let program = parse_input(input);
@@ -807,10 +881,6 @@ mod tests {
         }
     }
 
-    #[test]
-    pub fn test_boolean_literal() {
-        //
-    }
 
     // #[test]
     // fn test_parse_program() {
