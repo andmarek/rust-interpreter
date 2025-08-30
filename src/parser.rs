@@ -76,6 +76,7 @@ impl Parser {
         parser.register_prefix(TokenType::Minus, Self::parse_prefix_expression);
         parser.register_prefix(TokenType::BooleanTrue, Self::parse_boolean);
         parser.register_prefix(TokenType::BooleanFalse, Self::parse_boolean);
+        parser.register_prefix(TokenType::LeftParens, Self::parse_grouped_expression);
 
         // Register infix parse functions
         parser.register_infix(TokenType::Plus, Self::parse_infix_expression);
@@ -405,6 +406,28 @@ impl Parser {
         });
 
         Ok(let_statement)
+    }
+
+    pub fn parse_grouped_expression(&mut self) -> Expression {
+        // Move past the opening parenthesis
+        self.next_token();
+
+        // Parse the expression inside the parentheses
+        let exp = match self.parse_expression(Precedence::Lowest) {
+            Ok(result) => result,
+            Err(err) => {
+                debug!("Failed to parse grouped expression: {:?}", err);
+                panic!("Could not parse grouped expression: {:?}", err)
+            }
+        };
+
+        // Check for and consume the closing parenthesis
+        if !self.expect_peek(TokenType::RightParens) {
+            panic!("Expected closing parenthesis, got {:?}",
+                self.peek_token.as_ref().map(|t| &t.literal).unwrap_or(&String::from("EOF")));
+        }
+
+        exp
     }
 
     pub fn cur_token_is(&self, token_type: TokenType) -> bool {
@@ -915,6 +938,11 @@ mod tests {
             ("false", "false"),
             ("3 > 5 == false", "((3 > 5) == false)"),
             ("3 < 5 == true", "((3 < 5) == true)"),
+            ("1 + (2 + 3) + 4", "((1 + (2 + 3)) + 4)"),
+            ("(5 + 5) * 2", "((5 + 5) * 2)"),
+            ("2 / (5 + 5)", "(2 / (5 + 5))"),
+            ("-(5 + 5)", "(-(5 + 5))"),
+            ("!(true == true)", "(!(true == true))")
         ];
         for (input, expected) in operator_tests.iter() {
             let program = parse_input(input);
