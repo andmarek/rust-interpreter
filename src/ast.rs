@@ -14,6 +14,7 @@ pub enum Expression {
     Boolean { token: Token, value: bool },
     Prefix { token: Token, operator: String, right: Box<Expression> },
     Infix { token: Token, left: Box<Expression>, operator: String, right: Box<Expression> },
+    If { token: Token, condition: Box<Expression>, consequence: Box<BlockStatement>, alternative: Option<Box<BlockStatement>> },
 }
 
 impl Node for Expression {
@@ -25,6 +26,7 @@ impl Node for Expression {
             Expression::Boolean { token, .. } => token.literal.clone(),
             Expression::Prefix { token, .. } => token.literal.clone(),
             Expression::Infix { token, .. } => token.literal.clone(),
+            Expression::If { token, ..} => token.literal.clone(),
         }
     }
 
@@ -39,6 +41,9 @@ impl Node for Expression {
             },
             Expression::Infix { left, operator, right, .. } => {
                 format!("({} {} {})", left.string(), operator, right.string())
+            },
+            Expression::If { condition, consequence, alternative, .. } => {
+                format!("if {} {{ {} }}", condition.string(), consequence.string())
             },
         }
     }
@@ -339,6 +344,25 @@ impl Node for IntegerLiteral {
     }
     fn string(&self) -> String {
         self.token_literal()
+    }
+}
+
+#[derive(Debug)]
+pub struct BlockStatement {
+    pub token: Token,
+    pub statements: Vec<Box<dyn Statement>>,
+}
+
+impl Node for BlockStatement {
+    fn token_literal(&self) -> String {
+        self.token.clone().literal
+    }
+    fn string(&self) -> String {
+        let mut result = String::new();
+        for statement in &self.statements {
+            result.push_str(&statement.string());
+        }
+        result
     }
 }
 

@@ -1,6 +1,5 @@
 use crate::ast::{
-    BooleanLiteral, Expression, ExpressionStatement, Identifier, InfixExpression, IntegerLiteral,
-    LetStatement, Node, Program, ReturnStatement, StatementType, StringLiteral,
+    BlockStatement, BooleanLiteral, Expression, ExpressionStatement, Identifier, InfixExpression, IntegerLiteral, LetStatement, Node, Program, ReturnStatement, StatementType, StringLiteral
 };
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
@@ -77,6 +76,7 @@ impl Parser {
         parser.register_prefix(TokenType::BooleanTrue, Self::parse_boolean);
         parser.register_prefix(TokenType::BooleanFalse, Self::parse_boolean);
         parser.register_prefix(TokenType::LeftParens, Self::parse_grouped_expression);
+        parser.register_prefix(TokenType::If, Self::parse_if_expression);
 
         // Register infix parse functions
         parser.register_infix(TokenType::Plus, Self::parse_infix_expression);
@@ -161,14 +161,12 @@ impl Parser {
     }
 
     pub fn parse_expression(&mut self, precedence: Precedence) -> Result<Expression, ParseError> {
-        // Get current token type
         let token_type = self
             .cur_token
             .as_ref()
             .ok_or_else(|| ParseError::InvalidExpression("No current token".into()))?
             .token_type;
 
-        // Get and call prefix parse function
         let prefix_parse_fn = self.prefix_parse_fns.get(&token_type).ok_or_else(|| {
             debug!("No prefix function found for token type {:?}", token_type);
             ParseError::InvalidExpression(format!(
@@ -177,27 +175,22 @@ impl Parser {
             ))
         })?;
 
-        // Call the prefix parse function for the current token type
         let mut left_exp = prefix_parse_fn(self);
 
         // While the next token is not a semicolon and the current precedence is higher than the current token
         while !self.peek_token_is(TokenType::Semicolon) && precedence < self.peek_precedence()? {
-            // Get the token type of the next token
             let peek_token_type = self
                 .peek_token
                 .as_ref()
                 .ok_or_else(|| ParseError::InvalidExpression("No peek token".into()))?
                 .token_type;
 
-            // Get the infix parse function for the next token type
             let Some(infix_fn) = self.infix_parse_fns.get(&peek_token_type).copied() else {
                 break;
             };
 
-            // Consume the next token
             self.next_token();
 
-            // call the parse_infix_expression for the current (new) token type
             left_exp = infix_fn(self, left_exp)?;
         }
 
@@ -205,8 +198,12 @@ impl Parser {
     }
 
     pub fn peek_precedence(&mut self) -> Result<Precedence, String> {
-        let tt = self.peek_token.clone().ok_or("err")?.token_type;
-        self.precedences(tt)
+        let token_type = self
+            .peek_token
+            .clone()
+            .ok_or("Error peeking precendence")?
+            .token_type;
+        self.precedences(token_type)
     }
 
     pub fn parse_prefix_expression(&mut self) -> Expression {
@@ -290,19 +287,17 @@ impl Parser {
     }
 
     pub fn parse_expression_statement(&mut self) -> Result<ExpressionStatement, ParseError> {
-        // Get the token, return ParseError if None
         let token = self.cur_token.clone().ok_or(ParseError::InvalidExpression(
             "No token available".to_string(),
         ))?;
 
-        // Create the statement with the token
         let mut statement = ExpressionStatement {
             token,
             expression: None,
         };
 
         // Parse the expression and set it in the statement
-        // Set the precedence as the lowest since this is the first time we enter the function
+        // Set the precedence as the lowest
         statement.expression = Some(self.parse_expression(Precedence::Lowest)?);
 
         // Skip any semicolons
@@ -310,10 +305,6 @@ impl Parser {
             self.next_token();
         }
 
-        debug!(
-            "Here is the current token at the end of this!: {:?}",
-            self.cur_token
-        );
         Ok(statement)
     }
 
@@ -371,8 +362,10 @@ impl Parser {
     }
 
     pub fn parse_let_statement(&mut self) -> Result<LetStatement, String> {
-        // TODO: do we actually have to clone this?
-        let token = self.cur_token.clone().ok_or("No current token")?;
+        let token = self
+            .cur_token
+            .clone()
+            .ok_or("Could not get current token while parsing let statement")?;
 
         let mut let_statement = LetStatement {
             token,
@@ -380,29 +373,28 @@ impl Parser {
             value: None,
         };
 
-        /* If we don't have an identifier, then it's not a valid let statement */
+        // If we don't have an identifier, then it's not a valid let statement
         if !self.expect_peek(TokenType::Ident) {
             return Err("Expected identifier".to_string());
         }
 
-        let identifier = self.cur_token.clone().ok_or("No current token")?;
-        let_statement.name = Some(Identifier::new(identifier));
+        let identifier_token = self.cur_token.clone().ok_or("No current token")?;
 
-        /* TODO: Change EQUALS to ASSIGN */
+        let_statement.name = Some(Identifier::new(identifier_token));
+
         if !self.expect_peek(TokenType::Equals) {
             return Err("Expected equals sign after identifier in let statement".to_string());
         }
 
-        /* TODO: eventually replace this with parse expression */
-        let mut rest = String::new();
+        let mut rhs = String::new();
         while !self.cur_token_is(TokenType::Semicolon) {
             self.next_token();
-            rest.push_str(&self.cur_token.clone().unwrap().literal);
+            rhs.push_str(&self.cur_token.clone().unwrap().literal);
         }
 
         let_statement.value = Some(Expression::String {
             token: self.cur_token.clone().unwrap(),
-            value: rest,
+            value: rhs,
         });
 
         Ok(let_statement)
@@ -423,13 +415,85 @@ impl Parser {
 
         // Check for and consume the closing parenthesis
         if !self.expect_peek(TokenType::RightParens) {
-            panic!("Expected closing parenthesis, got {:?}",
-                self.peek_token.as_ref().map(|t| &t.literal).unwrap_or(&String::from("EOF")));
+            panic!(
+                "Expected closing parenthesis, got {:?}",
+                self.peek_token
+                    .as_ref()
+                    .map(|t| &t.literal)
+                    .unwrap_or(&String::from("EOF"))
+            );
         }
-
         exp
     }
 
+    pub fn parse_if_expression(&mut self) -> Expression {
+        let cur_token = self.cur_token.clone().expect("No token available");
+
+        if !self.expect_peek(TokenType::LeftParens) {
+            panic!(
+                "Expected left parens, got {:?}",
+                self.peek_token
+                    .as_ref()
+                    .map(|t| &t.literal)
+                    .unwrap_or(&String::from("EOF"))
+            );
+        }
+
+        self.next_token();
+
+        let condition = match self.parse_expression(Precedence::Lowest) {
+            Ok(result) => result,
+            Err(err) => panic!("ahh")
+        };
+
+
+        if !self.expect_peek(TokenType::RightParens) {
+            panic!(
+                "Expected right parens, got {:?}",
+                self.peek_token
+                    .as_ref()
+                    .map(|t| &t.literal)
+                    .unwrap_or(&String::from("EOF"))
+            );
+        }
+
+        if !self.expect_peek(TokenType::LeftBrace) {
+            panic!(
+                "Expected left brace, got {:?}",
+                self.peek_token
+                    .as_ref()
+                    .map(|t| &t.literal)
+                    .unwrap_or(&String::from("EOF"))
+            );
+        }
+
+        let consequence = self.parse_block_statement();
+
+        let alternative = if self.peek_token_is(TokenType::Else) {
+            self.next_token();
+            if !self.expect_peek(TokenType::LeftBrace) {
+                panic!("{}", "Expected left brace.".to_string());
+            }
+            Some(self.parse_block_statement())
+        } else {
+            None
+        };
+
+        Expression::If {
+            token: cur_token,
+            condition: Box::new(condition),
+            consequence: Box::new(consequence),
+            alternative: alternative.map(Box::new)
+        }
+    }
+
+
+    pub fn parse_block_statement(&mut self) -> BlockStatement {
+        unimplemented!();
+
+    }
+
+    /// Checks if the *current* token is of type `token_type`
     pub fn cur_token_is(&self, token_type: TokenType) -> bool {
         if let Some(token) = &self.cur_token {
             token.token_type == token_type
@@ -438,6 +502,7 @@ impl Parser {
         }
     }
 
+    /// Checks if the *next* token is of type `token_type`
     pub fn peek_token_is(&self, token_type: TokenType) -> bool {
         if let Some(token) = &self.peek_token {
             token.token_type == token_type
@@ -447,9 +512,6 @@ impl Parser {
     }
 
     pub fn expect_peek(&mut self, token_type: TokenType) -> bool {
-        // if the token is what we expect, then we move the parser to the next
-        // token and return true
-        // else return false
         if self.peek_token_is(token_type) {
             self.next_token();
             true
@@ -481,6 +543,8 @@ impl InfixExpression {
 
 #[cfg(test)]
 mod tests {
+    use crate::ast::BlockStatement;
+
     use super::*;
     use once_cell::sync::Lazy;
     use std::sync::Once;
@@ -942,7 +1006,7 @@ mod tests {
             ("(5 + 5) * 2", "((5 + 5) * 2)"),
             ("2 / (5 + 5)", "(2 / (5 + 5))"),
             ("-(5 + 5)", "(-(5 + 5))"),
-            ("!(true == true)", "(!(true == true))")
+            ("!(true == true)", "(!(true == true))"),
         ];
         for (input, expected) in operator_tests.iter() {
             let program = parse_input(input);
@@ -951,6 +1015,60 @@ mod tests {
             if &program_str != expected {
                 panic!("Expected {}, got {}", expected, program.string())
             }
+        }
+    }
+
+    // TODO
+    #[test]
+    pub fn test_if_expression() {
+        let input = String::from("if (x < y) { x }");
+        let program = parse_input(&input);
+        let program_str = program.string();
+        assert_statement_count(&program, 1);
+
+        match &program.statements[0] {
+            StatementType::Expression(expr_stmt) => match &expr_stmt.expression {
+                Some(Expression::If {
+                    token,
+                    condition,
+                    consequence,
+                    alternative,
+                    ..
+                }) => {
+                    assert_eq!(token.literal, "if");
+                    match condition.as_ref() {
+                        Expression::Infix { operator, .. } => {
+                            assert_eq!(operator, "<");
+                        }
+                        _ => panic!("Expected an infix expression!"),
+                    }
+                    match consequence.as_ref() {
+                        BlockStatement { token, statements } => {
+                            assert_eq!(token.literal, "{");
+                            assert_eq!(statements.len(), 1);
+
+                            let first_stmt = &statements[0];
+
+                            assert_eq!(first_stmt.string(), "x");
+                            assert_eq!(first_stmt.token_literal(), "x");
+                        }
+                        _ => panic!("noooooo"),
+                    }
+                    match alternative.as_ref() {
+                        BlockStatement { token, statements } => {
+                            assert_eq!(token.literal, "{");
+                            assert_eq!(statements.len(), 1);
+                        }
+                        _ => panic!("noooooo"),
+                    }
+                }
+                _ => panic!("Expected If expression"),
+            },
+            _ => panic!("Expected Expression statement"),
+        }
+
+        if &program_str != "if (x < y) { x }" {
+            panic!("Expected {}, got {}", "if (x < y) { x }", program.string())
         }
     }
 
