@@ -1,5 +1,5 @@
 use crate::ast::{
-    BlockStatement, BooleanLiteral, Expression, ExpressionStatement, Identifier, InfixExpression, IntegerLiteral, LetStatement, Node, Program, ReturnStatement, StatementType, StringLiteral
+    BlockStatement, Expression, ExpressionStatement, Identifier, InfixExpression, LetStatement, Node, Program, ReturnStatement, StatementType, Statement
 };
 use crate::lexer::Lexer;
 use crate::token::{Token, TokenType};
@@ -488,9 +488,24 @@ impl Parser {
     }
 
 
+    /// Parsing something like `{ .. }`
     pub fn parse_block_statement(&mut self) -> BlockStatement {
-        unimplemented!();
+        let cur_token = self.cur_token.clone().expect("No token available");
+        let mut statements: Vec<Box<dyn Statement>> = Vec::new();
 
+        while !self.cur_token_is(TokenType::RightBrace) && !self.cur_token_is(TokenType::Eof) {
+            let statement = self.parse_statement().unwrap();
+
+            match statement {
+                Some(value) => statements.push(value.into_statement()),
+                None => self.next_token(),
+            }
+        }
+
+        // Consume the }
+        self.next_token();
+
+        BlockStatement { token: cur_token, statements}
     }
 
     /// Checks if the *current* token is of type `token_type`
@@ -1054,13 +1069,7 @@ mod tests {
                         }
                         _ => panic!("noooooo"),
                     }
-                    match alternative.as_ref() {
-                        BlockStatement { token, statements } => {
-                            assert_eq!(token.literal, "{");
-                            assert_eq!(statements.len(), 1);
-                        }
-                        _ => panic!("noooooo"),
-                    }
+                    assert!(alternative.is_none(), "Expected no alternative (else clause),")
                 }
                 _ => panic!("Expected If expression"),
             },

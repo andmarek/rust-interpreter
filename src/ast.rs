@@ -366,6 +366,11 @@ impl Node for BlockStatement {
     }
 }
 
+impl Statement for IntegerLiteral {
+    fn statement_node(&self) {
+    }
+}
+
 #[derive(Debug)]
 pub enum StatementType {
     Let(LetStatement),
@@ -390,6 +395,15 @@ impl StatementType {
             StatementType::Return(s) => s.string(),
             StatementType::Expression(s) => s.string(),
             StatementType::Integer(s) => s.string(),
+        }
+    }
+
+    pub fn into_statement(self) -> Box<dyn Statement> {
+        match self {
+            StatementType::Let(stmt) => Box::new(stmt),
+            StatementType::Return(stmt) => Box::new(stmt),
+            StatementType::Expression(stmt) => Box::new(stmt),
+            StatementType::Integer(stmt) => Box::new(stmt),
         }
     }
 }
