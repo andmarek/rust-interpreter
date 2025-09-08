@@ -491,18 +491,23 @@ impl Parser {
     /// Parsing something like `{ .. }`
     pub fn parse_block_statement(&mut self) -> BlockStatement {
         let cur_token = self.cur_token.clone().expect("No token available");
+
+        self.next_token();
+
         let mut statements: Vec<Box<dyn Statement>> = Vec::new();
 
         while !self.cur_token_is(TokenType::RightBrace) && !self.cur_token_is(TokenType::Eof) {
             let statement = self.parse_statement().unwrap();
 
             match statement {
-                Some(value) => statements.push(value.into_statement()),
+                Some(value) => {
+                    statements.push(value.into_statement());
+                    self.next_token();
+                }
                 None => self.next_token(),
             }
         }
 
-        // Consume the }
         self.next_token();
 
         BlockStatement { token: cur_token, statements}
